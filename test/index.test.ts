@@ -34,6 +34,7 @@ it('basic', async() => {
         return `Hello ${name}, my name is Alice`
       },
     },
+    eventNames: ['bump'],
     post: data => channel.port2.postMessage(data),
     on: data => channel.port2.on('message', data),
   })
@@ -42,7 +43,7 @@ it('basic', async() => {
   expect(await alice.hi('Alice')).toEqual('Hi Alice, I am Bob')
 
   // one way message
-  alice.bump.noReply()
+  expect(alice.bump()).toBeUndefined()
 
   expect(bobCount).toBe(0)
 

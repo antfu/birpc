@@ -1,11 +1,15 @@
 export type ArgumentsType<T> = T extends (...args: infer A) => any ? A : never
 export type ReturnType<T> = T extends (...args: any) => infer R ? R : never
 
-export interface BirpcOptions<Functions> {
+export interface BirpcOptions<Local, Remote> {
   /**
    * Local functions implementation.
    */
-  functions: Functions
+  functions: Local
+  /**
+   * Names of remote functions that do not need response.
+   */
+  eventNames?: (keyof Remote)[]
   /**
    * Function to post raw message
    */
@@ -36,7 +40,7 @@ export type BirpcFn<T> = {
   /**
    * Send event without asking for response
    */
-  noReply(...args: ArgumentsType<T>): void
+  asEvent(...args: ArgumentsType<T>): void
 }
 
 export type BirpcReturn<RemoteFunctions> = {
@@ -87,9 +91,10 @@ export function createBirpc<LocalFunctions = {}, RemoteFunctions = {}>({
   functions,
   post,
   on,
+  eventNames = [],
   serialize = i => i,
   deserialize = i => i,
-}: BirpcOptions<LocalFunctions>): BirpcReturn<RemoteFunctions> {
+}: BirpcOptions<LocalFunctions, RemoteFunctions>): BirpcReturn<RemoteFunctions> {
   const rpcPromiseMap = new Map<string, { resolve: ((...args: any) => any); reject: (...args: any) => any }>()
 
   on(async(data) => {
@@ -119,18 +124,23 @@ export function createBirpc<LocalFunctions = {}, RemoteFunctions = {}>({
   })
 
   return new Proxy({}, {
-    get(_, method: string) {
-      const fn = (...args: any[]) => {
+    get(_, method) {
+      const sendEvent = (...args: any[]) => {
+        post(serialize(<Request>{ m: method, a: args, t: 'q' }))
+      }
+      if (eventNames.includes(method as any)) {
+        sendEvent.asEvent = sendEvent
+        return sendEvent
+      }
+      const sendCall = (...args: any[]) => {
         return new Promise((resolve, reject) => {
           const id = nanoid()
           rpcPromiseMap.set(id, { resolve, reject })
           post(serialize(<Request>{ m: method, a: args, i: id, t: 'q' }))
         })
       }
-      fn.noReply = (...args: any[]) => {
-        post(serialize(<Request>{ m: method, a: args, t: 'q' }))
-      }
-      return fn
+      sendCall.asEvent = sendEvent
+      return sendCall
     },
   }) as any
 }
