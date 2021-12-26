@@ -1,11 +1,11 @@
 export type ArgumentsType<T> = T extends (...args: infer A) => any ? A : never
 export type ReturnType<T> = T extends (...args: any) => infer R ? R : never
 
-export interface BirpcOptions<S> {
+export interface BirpcOptions<Functions> {
   /**
    * Local functions implementation.
    */
-  functions: S
+  functions: Functions
   /**
    * Function to post raw message
    */
@@ -28,29 +28,57 @@ export interface BirpcOptions<S> {
   deserialize?: (data: any) => any
 }
 
-export interface BirpcReturn<RemoteFunctions> {
+export type BirpcFn<T> = {
   /**
-   * Call a remote function and wait for the result.
+   * Call the remote function and wait for the result.
    */
-  call<T extends keyof RemoteFunctions>(method: T, ...args: ArgumentsType<RemoteFunctions[T]>): Promise<Awaited<ReturnType<RemoteFunctions[T]>>>
+  (...args: ArgumentsType<T>): Promise<Awaited<ReturnType<T>>>
   /**
-   * Send events without waiting for response
+   * Send event without asking for response
    */
-  send<T extends keyof RemoteFunctions>(method: T, ...args: ArgumentsType<RemoteFunctions[T]>): void
+  noReply(...args: ArgumentsType<T>): void
+}
+
+export type BirpcReturn<RemoteFunctions> = {
+  [K in keyof RemoteFunctions]: BirpcFn<RemoteFunctions[K]>
 }
 
 interface Request {
-  type: 'req'
-  ack?: string
-  method: string
-  args: any[]
+  /**
+   * Type
+   */
+  t: 'q'
+  /**
+   * ID
+   */
+  i?: string
+  /**
+   * Method
+   */
+  m: string
+  /**
+   * Arguments
+   */
+  a: any[]
 }
 
 interface Response {
-  type: 'res'
-  ack: string
-  result?: any
-  error?: any
+  /**
+   * Type
+   */
+  t: 's'
+  /**
+   * Id
+   */
+  i: string
+  /**
+   * Result
+   */
+  r?: any
+  /**
+   * Error
+   */
+  e?: any
 }
 
 type RPCMessage = Request | Response
@@ -66,8 +94,8 @@ export function createBirpc<LocalFunctions = {}, RemoteFunctions = {}>({
 
   on(async(data) => {
     const msg = deserialize(data) as RPCMessage
-    if (msg.type === 'req') {
-      const { method, args, ack } = msg
+    if (msg.t === 'q') {
+      const { m: method, a: args } = msg
       let result, error: any
       try {
         // @ts-expect-error
@@ -76,11 +104,11 @@ export function createBirpc<LocalFunctions = {}, RemoteFunctions = {}>({
       catch (e) {
         error = e
       }
-      if (ack)
-        await post(serialize({ type: 'res', ack, result, error }))
+      if (msg.i)
+        post(serialize(<Response>{ t: 's', i: msg.i, r: result, e: error }))
     }
     else {
-      const { ack, result, error } = msg
+      const { i: ack, r: result, e: error } = msg
       const promise = rpcPromiseMap.get(ack)
       if (error)
         promise?.reject(error)
@@ -90,18 +118,21 @@ export function createBirpc<LocalFunctions = {}, RemoteFunctions = {}>({
     }
   })
 
-  return {
-    call(method, ...args) {
-      return new Promise((resolve, reject) => {
-        const ack = nanoid()
-        rpcPromiseMap.set(ack, { resolve, reject })
-        post(serialize({ method, args, ack, type: 'req' }))
-      })
+  return new Proxy({}, {
+    get(_, method: string) {
+      const fn = (...args: any[]) => {
+        return new Promise((resolve, reject) => {
+          const id = nanoid()
+          rpcPromiseMap.set(id, { resolve, reject })
+          post(serialize(<Request>{ m: method, a: args, i: id, t: 'q' }))
+        })
+      }
+      fn.noReply = (...args: any[]) => {
+        post(serialize(<Request>{ m: method, a: args, t: 'q' }))
+      }
+      return fn
     },
-    send(method, ...args) {
-      post(serialize({ method, args, type: 'req' }))
-    },
-  }
+  }) as any
 }
 
 // port from nanoid

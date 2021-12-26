@@ -4,6 +4,7 @@ import { createBirpc } from '../src'
 
 interface Bobs {
   hi(name: string): string
+  bump(): void
 }
 
 interface Alice {
@@ -13,10 +14,14 @@ interface Alice {
 it('basic', async() => {
   const channel = new MessageChannel()
 
+  let bobCount = 0
   const bob = createBirpc<Bobs, Alice>({
     functions: {
       hi(name) {
         return `Hi ${name}, I am Bob`
+      },
+      bump() {
+        bobCount += 1
       },
     },
     post: data => channel.port1.postMessage(data),
@@ -33,6 +38,15 @@ it('basic', async() => {
     on: data => channel.port2.on('message', data),
   })
 
-  expect(await bob.call('hello', 'Bob')).toEqual('Hello Bob, my name is Alice')
-  expect(await alice.call('hi', 'Alice')).toEqual('Hi Alice, I am Bob')
+  expect(await bob.hello('Bob')).toEqual('Hello Bob, my name is Alice')
+  expect(await alice.hi('Alice')).toEqual('Hi Alice, I am Bob')
+
+  // one way message
+  alice.bump.noReply()
+
+  expect(bobCount).toBe(0)
+
+  await new Promise(resolve => setTimeout(resolve, 1))
+
+  expect(bobCount).toBe(1)
 })
