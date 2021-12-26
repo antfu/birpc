@@ -1,6 +1,6 @@
 {
   "name": "birpc",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Message based Two-way remote procedure call",
   "keywords": [
     "rpc",
