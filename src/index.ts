@@ -1,11 +1,7 @@
 export type ArgumentsType<T> = T extends (...args: infer A) => any ? A : never
 export type ReturnType<T> = T extends (...args: any) => infer R ? R : never
 
-export interface BirpcOptions<Local, Remote> {
-  /**
-   * Local functions implementation.
-   */
-  functions: Local
+export interface BirpcOptions<Remote> {
   /**
    * Names of remote functions that do not need response.
    */
@@ -87,14 +83,18 @@ interface Response {
 
 type RPCMessage = Request | Response
 
-export function createBirpc<LocalFunctions = {}, RemoteFunctions = {}>({
-  functions,
-  post,
-  on,
-  eventNames = [],
-  serialize = i => i,
-  deserialize = i => i,
-}: BirpcOptions<LocalFunctions, RemoteFunctions>): BirpcReturn<RemoteFunctions> {
+export function createBirpc<RemoteFunctions = {}, LocalFunctions = {}>(
+  functions: LocalFunctions,
+  options: BirpcOptions<RemoteFunctions>,
+): BirpcReturn<RemoteFunctions> {
+  const {
+    post,
+    on,
+    eventNames = [],
+    serialize = i => i,
+    deserialize = i => i,
+  } = options
+
   const rpcPromiseMap = new Map<string, { resolve: ((...args: any) => any); reject: (...args: any) => any }>()
 
   on(async(data) => {
