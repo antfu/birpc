@@ -161,7 +161,7 @@ export function createBirpc<RemoteFunctions = {}, LocalFunctions = {}>(
       let result, error: any
       try {
         // @ts-expect-error casting
-        result = await (functions[method]).call(rpc, args)
+        result = await (functions[method]).apply(rpc, args)
       }
       catch (e) {
         error = e
