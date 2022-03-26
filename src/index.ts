@@ -1,11 +1,7 @@
 export type ArgumentsType<T> = T extends (...args: infer A) => any ? A : never
 export type ReturnType<T> = T extends (...args: any) => infer R ? R : never
 
-export interface BirpcOptions<Remote> {
-  /**
-   * Names of remote functions that do not need response.
-   */
-  eventNames?: (keyof Remote)[]
+export interface ChannelOptions {
   /**
    * Function to post raw message
    */
@@ -28,6 +24,15 @@ export interface BirpcOptions<Remote> {
   deserialize?: (data: any) => any
 }
 
+export interface EventOptions<Remote> {
+  /**
+   * Names of remote functions that do not need response.
+   */
+  eventNames?: (keyof Remote)[]
+}
+
+export type BirpcOptions<Remote> = EventOptions<Remote> & ChannelOptions
+
 export interface BirpcFn<T> {
   /**
    * Call the remote function and wait for the result.
@@ -39,8 +44,23 @@ export interface BirpcFn<T> {
   asEvent(...args: ArgumentsType<T>): void
 }
 
+export interface BirpcGroupFn<T> {
+  /**
+   * Call the remote function and wait for the result.
+   */
+  (...args: ArgumentsType<T>): Promise<Awaited<ReturnType<T>>[]>
+  /**
+   * Send event without asking for response
+   */
+  asEvent(...args: ArgumentsType<T>): void
+}
+
 export type BirpcReturn<RemoteFunctions> = {
   [K in keyof RemoteFunctions]: BirpcFn<RemoteFunctions[K]>
+}
+
+export type BirpcGroupReturn<RemoteFunctions> = {
+  [K in keyof RemoteFunctions]: BirpcGroupFn<RemoteFunctions[K]>
 }
 
 interface Request {
@@ -95,35 +115,9 @@ export function createBirpc<RemoteFunctions = {}, LocalFunctions = {}>(
     deserialize = i => i,
   } = options
 
-  const rpcPromiseMap = new Map<string, { resolve: ((...args: any) => any); reject: (...args: any) => any }>()
+  const rpcPromiseMap = new Map<string, { resolve: Function; reject: Function }>()
 
-  on(async(data, ...extra) => {
-    const msg = deserialize(data) as RPCMessage
-    if (msg.t === 'q') {
-      const { m: method, a: args } = msg
-      let result, error: any
-      try {
-        // @ts-expect-error casting
-        result = await functions[method](...args)
-      }
-      catch (e) {
-        error = e
-      }
-      if (msg.i)
-        post(serialize(<Response>{ t: 's', i: msg.i, r: result, e: error }), ...extra)
-    }
-    else {
-      const { i: ack, r: result, e: error } = msg
-      const promise = rpcPromiseMap.get(ack)
-      if (error)
-        promise?.reject(error)
-      else
-        promise?.resolve(result)
-      rpcPromiseMap.delete(ack)
-    }
-  })
-
-  return new Proxy({}, {
+  const rpc = new Proxy({}, {
     get(_, method) {
       const sendEvent = (...args: any[]) => {
         post(serialize(<Request>{ m: method, a: args, t: 'q' }))
@@ -142,7 +136,84 @@ export function createBirpc<RemoteFunctions = {}, LocalFunctions = {}>(
       sendCall.asEvent = sendEvent
       return sendCall
     },
-  }) as any
+  }) as BirpcReturn<RemoteFunctions>
+
+  on(async(data, ...extra) => {
+    const msg = deserialize(data) as RPCMessage
+    if (msg.t === 'q') {
+      const { m: method, a: args } = msg
+      let result, error: any
+      try {
+        // @ts-expect-error casting
+        result = await (functions[method]).call(rpc, args)
+      }
+      catch (e) {
+        error = e
+      }
+      if (msg.i)
+        post(serialize(<Response>{ t: 's', i: msg.i, r: result, e: error }), ...extra)
+    }
+    else {
+      const { i: ack, r: result, e: error } = msg
+      const promise = rpcPromiseMap.get(ack)
+      if (error)
+        promise?.reject(error)
+      else
+        promise?.resolve(result)
+      rpcPromiseMap.delete(ack)
+    }
+  })
+
+  return rpc
+}
+
+const cacheMap = new WeakMap<any, any>()
+export function cachedMap<T, R>(items: T[], fn: ((i: T) => R)): R[] {
+  return items.map((i) => {
+    let r = cacheMap.get(i)
+    if (!r) {
+      r = fn(i)
+      cacheMap.set(i, r)
+    }
+    return r
+  })
+}
+
+export function createBirpcGroup<RemoteFunctions = {}, LocalFunctions = {}>(
+  functions: LocalFunctions,
+  channels: ChannelOptions[],
+  options: EventOptions<RemoteFunctions> = {},
+) {
+  const getClients = () => cachedMap(channels, s => createBirpc(functions, { ...options, ...s }))
+
+  const boardcastProxy = new Proxy({}, {
+    get(_, method) {
+      const client = getClients()
+      const functions = client.map(c => (c as any)[method])
+      const sendCall = (...args: any[]) => {
+        return Promise.all(functions.map(i => i(...args)))
+      }
+      sendCall.asEvent = (...args: any[]) => {
+        functions.map(i => i.asEvent(...args))
+      }
+      return sendCall
+    },
+  }) as BirpcGroupReturn<RemoteFunctions>
+
+  function updateChannels(fn?: ((channels: ChannelOptions[]) => void)) {
+    fn?.(channels)
+    return getClients()
+  }
+
+  updateChannels()
+
+  return {
+    get clients() {
+      return getClients()
+    },
+    updateChannels,
+    boardcast: boardcastProxy,
+  }
 }
 
 // port from nanoid
