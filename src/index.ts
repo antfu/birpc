@@ -29,6 +29,13 @@ export interface EventOptions<Remote> {
    * Names of remote functions that do not need response.
    */
   eventNames?: (keyof Remote)[]
+
+  /**
+   * Maximum timeout for waiting for response, in milliseconds.
+   *
+   * @default 60_000
+   */
+  timeout?: number
 }
 
 export type BirpcOptions<Remote> = EventOptions<Remote> & ChannelOptions
@@ -103,6 +110,8 @@ interface Response {
 
 type RPCMessage = Request | Response
 
+export const DEFAULT_TIMEOUT = 60_000 // 1 minute
+
 export function createBirpc<RemoteFunctions = {}, LocalFunctions = {}>(
   functions: LocalFunctions,
   options: BirpcOptions<RemoteFunctions>,
@@ -113,12 +122,13 @@ export function createBirpc<RemoteFunctions = {}, LocalFunctions = {}>(
     eventNames = [],
     serialize = i => i,
     deserialize = i => i,
+    timeout = DEFAULT_TIMEOUT,
   } = options
 
   const rpcPromiseMap = new Map<string, { resolve: Function; reject: Function }>()
 
   const rpc = new Proxy({}, {
-    get(_, method) {
+    get(_, method: string) {
       const sendEvent = (...args: any[]) => {
         post(serialize(<Request>{ m: method, a: args, t: 'q' }))
       }
@@ -131,6 +141,12 @@ export function createBirpc<RemoteFunctions = {}, LocalFunctions = {}>(
           const id = nanoid()
           rpcPromiseMap.set(id, { resolve, reject })
           post(serialize(<Request>{ m: method, a: args, i: id, t: 'q' }))
+          if (timeout >= 0) {
+            setTimeout(() => {
+              reject(new Error(`[birpc] timeout on calling "${method}"`))
+              rpcPromiseMap.delete(id)
+            }, timeout)
+          }
         })
       }
       sendCall.asEvent = sendEvent
@@ -205,7 +221,7 @@ export function createBirpcGroup<RemoteFunctions = {}, LocalFunctions = {}>(
     return getClients()
   }
 
-  updateChannels()
+  getClients()
 
   return {
     get clients() {
