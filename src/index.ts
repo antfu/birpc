@@ -9,11 +9,11 @@ export interface BirpcOptions<Remote> {
   /**
    * Function to post raw message
    */
-  post: (data: any) => void
+  post: (data: any, ...extras: any[]) => void
   /**
    * Listener to receive raw message
    */
-  on: (fn: (data: any) => void) => void
+  on: (fn: (data: any, ...extras: any[]) => void) => void
   /**
    * Custom function to serialize data
    *
@@ -97,7 +97,7 @@ export function createBirpc<RemoteFunctions = {}, LocalFunctions = {}>(
 
   const rpcPromiseMap = new Map<string, { resolve: ((...args: any) => any); reject: (...args: any) => any }>()
 
-  on(async(data) => {
+  on(async(data, ...extra) => {
     const msg = deserialize(data) as RPCMessage
     if (msg.t === 'q') {
       const { m: method, a: args } = msg
@@ -110,7 +110,7 @@ export function createBirpc<RemoteFunctions = {}, LocalFunctions = {}>(
         error = e
       }
       if (msg.i)
-        post(serialize(<Response>{ t: 's', i: msg.i, r: result, e: error }))
+        post(serialize(<Response>{ t: 's', i: msg.i, r: result, e: error }), ...extra)
     }
     else {
       const { i: ack, r: result, e: error } = msg
