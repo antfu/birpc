@@ -28,7 +28,7 @@ export interface BirpcOptions<Remote> {
   deserialize?: (data: any) => any
 }
 
-export type BirpcFn<T> = {
+export interface BirpcFn<T> {
   /**
    * Call the remote function and wait for the result.
    */
@@ -103,7 +103,7 @@ export function createBirpc<RemoteFunctions = {}, LocalFunctions = {}>(
       const { m: method, a: args } = msg
       let result, error: any
       try {
-        // @ts-expect-error
+        // @ts-expect-error casting
         result = await functions[method](...args)
       }
       catch (e) {
