@@ -1,6 +1,6 @@
 {
   "name": "birpc",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "packageManager": "pnpm@7.1.0",
   "description": "Message based Two-way remote procedure call",
   "keywords": [
