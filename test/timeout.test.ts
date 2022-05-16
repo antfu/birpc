@@ -6,7 +6,7 @@ import type * as Alice from './alice'
 
 type AliceFunctions = typeof Alice
 
-it('timeout', async() => {
+it('timeout', async () => {
   const channel = new MessageChannel()
 
   const bob = createBirpc<AliceFunctions>(

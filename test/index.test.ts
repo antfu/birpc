@@ -7,7 +7,7 @@ import * as Alice from './alice'
 type BobFunctions = typeof Bob
 type AliceFunctions = typeof Alice
 
-it('basic', async() => {
+it('basic', async () => {
   const channel = new MessageChannel()
 
   const bob = createBirpc<AliceFunctions>(

@@ -153,7 +153,7 @@ export function createBirpc<RemoteFunctions = {}, LocalFunctions = {}>(
     },
   }) as BirpcReturn<RemoteFunctions>
 
-  on(async(data, ...extra) => {
+  on(async (data, ...extra) => {
     const msg = deserialize(data) as RPCMessage
     if (msg.t === 'q') {
       const { m: method, a: args } = msg
