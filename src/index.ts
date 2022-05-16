@@ -1,5 +1,8 @@
 export type ArgumentsType<T> = T extends (...args: infer A) => any ? A : never
 export type ReturnType<T> = T extends (...args: any) => infer R ? R : never
+export type PromisifyFn<T> = ReturnType<T> extends Promise<any>
+  ? T
+  : (...args: ArgumentsType<T>) => Promise<Awaited<ReturnType<T>>>
 
 export interface ChannelOptions {
   /**
@@ -40,11 +43,7 @@ export interface EventOptions<Remote> {
 
 export type BirpcOptions<Remote> = EventOptions<Remote> & ChannelOptions
 
-export interface BirpcFn<T> {
-  /**
-   * Call the remote function and wait for the result.
-   */
-  (...args: ArgumentsType<T>): Promise<Awaited<ReturnType<T>>>
+export type BirpcFn<T> = PromisifyFn<T> & {
   /**
    * Send event without asking for response
    */
