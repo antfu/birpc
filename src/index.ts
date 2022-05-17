@@ -111,6 +111,9 @@ type RPCMessage = Request | Response
 
 export const DEFAULT_TIMEOUT = 60_000 // 1 minute
 
+const defaultSerialize = (i: any) => i
+const defaultDeserialize = defaultSerialize
+
 export function createBirpc<RemoteFunctions = {}, LocalFunctions = {}>(
   functions: LocalFunctions,
   options: BirpcOptions<RemoteFunctions>,
@@ -119,8 +122,8 @@ export function createBirpc<RemoteFunctions = {}, LocalFunctions = {}>(
     post,
     on,
     eventNames = [],
-    serialize = i => i,
-    deserialize = i => i,
+    serialize = defaultSerialize,
+    deserialize = defaultDeserialize,
     timeout = DEFAULT_TIMEOUT,
   } = options
 
@@ -171,10 +174,12 @@ export function createBirpc<RemoteFunctions = {}, LocalFunctions = {}>(
     else {
       const { i: ack, r: result, e: error } = msg
       const promise = rpcPromiseMap.get(ack)
-      if (error)
-        promise?.reject(error)
-      else
-        promise?.resolve(result)
+      if (promise) {
+        if (error)
+          promise.reject(error)
+        else
+          promise.resolve(result)
+      }
       rpcPromiseMap.delete(ack)
     }
   })
