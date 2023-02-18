@@ -54,7 +54,7 @@ it('group', async () => {
     .toEqual('Hello Bob, my name is Alice')
   expect(await client2.hello('Bob'))
     .toEqual('Hello Bob, my name is Alice')
-  expect(await server.boardcast.hi('Alice'))
+  expect(await server.broadcast.hi('Alice'))
     .toEqual([
       'Hi Alice, I am Bob',
       'Hi Alice, I am Bob',
@@ -67,7 +67,7 @@ it('group', async () => {
     })
   })
 
-  expect(await server.boardcast.hi('Alice'))
+  expect(await server.broadcast.hi('Alice'))
     .toEqual([
       'Hi Alice, I am Bob',
       'Hi Alice, I am Bob',

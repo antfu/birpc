@@ -207,7 +207,7 @@ export function createBirpcGroup<RemoteFunctions = {}, LocalFunctions = {}>(
   const getChannels = () => typeof channels === 'function' ? channels() : channels
   const getClients = (channels = getChannels()) => cachedMap(channels, s => createBirpc(functions, { ...options, ...s }))
 
-  const boardcastProxy = new Proxy({}, {
+  const broadcastProxy = new Proxy({}, {
     get(_, method) {
       const client = getClients()
       const functions = client.map(c => (c as any)[method])
@@ -234,7 +234,11 @@ export function createBirpcGroup<RemoteFunctions = {}, LocalFunctions = {}>(
       return getClients()
     },
     updateChannels,
-    boardcast: boardcastProxy,
+    broadcast: broadcastProxy,
+    /**
+     * @deprecated use `broadcast`
+     */
+    boardcast: broadcastProxy,
   }
 }
 
