@@ -42,15 +42,15 @@
     "test": "vitest"
   },
   "devDependencies": {
-    "@antfu/eslint-config": "^0.35.2",
+    "@antfu/eslint-config": "^0.35.3",
     "@antfu/ni": "^0.20.0",
-    "@types/node": "^18.14.0",
-    "bumpp": "^8.2.1",
-    "eslint": "^8.34.0",
+    "@types/node": "^18.14.2",
+    "bumpp": "^9.0.0",
+    "eslint": "^8.35.0",
     "esno": "^0.16.3",
     "typescript": "^4.9.5",
     "unbuild": "^1.1.2",
-    "vite": "^4.1.2",
-    "vitest": "^0.28.5"
+    "vite": "^4.1.4",
+    "vitest": "^0.29.1"
   }
 }
