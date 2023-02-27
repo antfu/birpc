@@ -16,7 +16,10 @@ it('group', async () => {
     Bob,
     {
       post: data => channel1.port1.postMessage(data),
-      on: data => channel1.port1.on('message', data),
+      on: async (data) => {
+        await new Promise(resolve => setTimeout(resolve, 100))
+        channel1.port1.on('message', data)
+      },
     },
   )
   const client2 = createBirpc<AliceFunctions>(

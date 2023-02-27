@@ -8,11 +8,11 @@ export interface ChannelOptions {
   /**
    * Function to post raw message
    */
-  post: (data: any, ...extras: any[]) => void
+  post: (data: any, ...extras: any[]) => any | Promise<any>
   /**
    * Listener to receive raw message
    */
-  on: (fn: (data: any, ...extras: any[]) => void) => void
+  on: (fn: (data: any, ...extras: any[]) => void) => any | Promise<any>
   /**
    * Custom function to serialize data
    *
@@ -129,6 +129,8 @@ export function createBirpc<RemoteFunctions = {}, LocalFunctions = {}>(
 
   const rpcPromiseMap = new Map<string, { resolve: Function; reject: Function }>()
 
+  let _promise: Promise<any> | any
+
   const rpc = new Proxy({}, {
     get(_, method: string) {
       const sendEvent = (...args: any[]) => {
@@ -138,7 +140,9 @@ export function createBirpc<RemoteFunctions = {}, LocalFunctions = {}>(
         sendEvent.asEvent = sendEvent
         return sendEvent
       }
-      const sendCall = (...args: any[]) => {
+      const sendCall = async (...args: any[]) => {
+        // Wait if `on` is promise
+        await _promise
         return new Promise((resolve, reject) => {
           const id = nanoid()
           rpcPromiseMap.set(id, { resolve, reject })
@@ -156,7 +160,7 @@ export function createBirpc<RemoteFunctions = {}, LocalFunctions = {}>(
     },
   }) as BirpcReturn<RemoteFunctions>
 
-  on(async (data, ...extra) => {
+  _promise = on(async (data, ...extra) => {
     const msg = deserialize(data) as RPCMessage
     if (msg.t === 'q') {
       const { m: method, a: args } = msg
