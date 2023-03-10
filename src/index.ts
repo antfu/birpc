@@ -61,18 +61,19 @@ export interface BirpcGroupFn<T> {
   asEvent(...args: ArgumentsType<T>): void
 }
 
-export type BirpcReturn<RemoteFunctions> = {
+export type BirpcReturn<RemoteFunctions, LocalFunctions = {}> = {
   [K in keyof RemoteFunctions]: BirpcFn<RemoteFunctions[K]>
-}
+} & { $functions: LocalFunctions }
 
 export type BirpcGroupReturn<RemoteFunctions> = {
   [K in keyof RemoteFunctions]: BirpcGroupFn<RemoteFunctions[K]>
 }
 
-export interface BirpcGroup<RemoteFunctions> {
-  readonly clients: BirpcReturn<RemoteFunctions>[]
-  updateChannels(fn?: ((channels: ChannelOptions[]) => void)): BirpcReturn<RemoteFunctions>[]
-  broadcast: BirpcGroupReturn<RemoteFunctions>
+export interface BirpcGroup<RemoteFunctions, LocalFunctions = {}> {
+  readonly clients: BirpcReturn<RemoteFunctions, LocalFunctions>[]
+  readonly functions: LocalFunctions
+  readonly broadcast: BirpcGroupReturn<RemoteFunctions>
+  updateChannels(fn?: ((channels: ChannelOptions[]) => void)): BirpcReturn<RemoteFunctions, LocalFunctions>[]
 }
 
 interface Request {
@@ -123,7 +124,7 @@ const defaultDeserialize = defaultSerialize
 export function createBirpc<RemoteFunctions = {}, LocalFunctions = {}>(
   functions: LocalFunctions,
   options: BirpcOptions<RemoteFunctions>,
-): BirpcReturn<RemoteFunctions> {
+): BirpcReturn<RemoteFunctions, LocalFunctions> {
   const {
     post,
     on,
@@ -139,6 +140,9 @@ export function createBirpc<RemoteFunctions = {}, LocalFunctions = {}>(
 
   const rpc = new Proxy({}, {
     get(_, method: string) {
+      if (method === '$functions')
+        return functions
+
       const sendEvent = (...args: any[]) => {
         post(serialize(<Request>{ m: method, a: args, t: 'q' }))
       }
@@ -164,7 +168,7 @@ export function createBirpc<RemoteFunctions = {}, LocalFunctions = {}>(
       sendCall.asEvent = sendEvent
       return sendCall
     },
-  }) as BirpcReturn<RemoteFunctions>
+  }) as BirpcReturn<RemoteFunctions, LocalFunctions>
 
   _promise = on(async (data, ...extra) => {
     const msg = deserialize(data) as RPCMessage
@@ -213,19 +217,19 @@ export function createBirpcGroup<RemoteFunctions = {}, LocalFunctions = {}>(
   functions: LocalFunctions,
   channels: ChannelOptions[] | (() => ChannelOptions[]),
   options: EventOptions<RemoteFunctions> = {},
-): BirpcGroup<RemoteFunctions> {
+): BirpcGroup<RemoteFunctions, LocalFunctions> {
   const getChannels = () => typeof channels === 'function' ? channels() : channels
   const getClients = (channels = getChannels()) => cachedMap(channels, s => createBirpc(functions, { ...options, ...s }))
 
   const broadcastProxy = new Proxy({}, {
     get(_, method) {
       const client = getClients()
-      const functions = client.map(c => (c as any)[method])
+      const callbacks = client.map(c => (c as any)[method])
       const sendCall = (...args: any[]) => {
-        return Promise.all(functions.map(i => i(...args)))
+        return Promise.all(callbacks.map(i => i(...args)))
       }
       sendCall.asEvent = (...args: any[]) => {
-        functions.map(i => i.asEvent(...args))
+        callbacks.map(i => i.asEvent(...args))
       }
       return sendCall
     },
@@ -243,6 +247,7 @@ export function createBirpcGroup<RemoteFunctions = {}, LocalFunctions = {}>(
     get clients() {
       return getClients()
     },
+    functions,
     updateChannels,
     broadcast: broadcastProxy,
     /**
