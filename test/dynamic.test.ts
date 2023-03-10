@@ -1,4 +1,4 @@
-import { MessageChannel } from 'worker_threads'
+import { MessageChannel } from 'node:worker_threads'
 import { expect, it } from 'vitest'
 import { createBirpc } from '../src'
 import * as Bob from './bob'
