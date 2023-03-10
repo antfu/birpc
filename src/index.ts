@@ -69,6 +69,12 @@ export type BirpcGroupReturn<RemoteFunctions> = {
   [K in keyof RemoteFunctions]: BirpcGroupFn<RemoteFunctions[K]>
 }
 
+export interface BirpcGroup<RemoteFunctions> {
+  readonly clients: BirpcReturn<RemoteFunctions>[]
+  updateChannels(fn?: ((channels: ChannelOptions[]) => void)): BirpcReturn<RemoteFunctions>[]
+  broadcast: BirpcGroupReturn<RemoteFunctions>
+}
+
 interface Request {
   /**
    * Type
@@ -207,7 +213,7 @@ export function createBirpcGroup<RemoteFunctions = {}, LocalFunctions = {}>(
   functions: LocalFunctions,
   channels: ChannelOptions[] | (() => ChannelOptions[]),
   options: EventOptions<RemoteFunctions> = {},
-) {
+): BirpcGroup<RemoteFunctions> {
   const getChannels = () => typeof channels === 'function' ? channels() : channels
   const getClients = (channels = getChannels()) => cachedMap(channels, s => createBirpc(functions, { ...options, ...s }))
 
@@ -242,6 +248,7 @@ export function createBirpcGroup<RemoteFunctions = {}, LocalFunctions = {}>(
     /**
      * @deprecated use `broadcast`
      */
+    // @ts-expect-error deprecated
     boardcast: broadcastProxy,
   }
 }
