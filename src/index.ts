@@ -25,6 +25,13 @@ export interface ChannelOptions {
    * by default it passes the data as-is
    */
   deserialize?: (data: any) => any
+
+  /**
+   * Custom resolver to resolve function to be called
+   *
+   * For advanced use cases only
+   */
+  resolver?: (name: string, resolved: Function) => Function | undefined
 }
 
 export interface EventOptions<Remote> {
@@ -131,6 +138,7 @@ export function createBirpc<RemoteFunctions = {}, LocalFunctions = {}>(
     eventNames = [],
     serialize = defaultSerialize,
     deserialize = defaultDeserialize,
+    resolver,
     timeout = DEFAULT_TIMEOUT,
   } = options
 
@@ -175,13 +183,22 @@ export function createBirpc<RemoteFunctions = {}, LocalFunctions = {}>(
     if (msg.t === 'q') {
       const { m: method, a: args } = msg
       let result, error: any
-      try {
-        // @ts-expect-error casting
-        result = await (functions[method]).apply(rpc, args)
+      const fn = resolver
+        ? resolver(method, (functions as any)[method])
+        : (functions as any)[method]
+
+      if (!fn) {
+        error = new Error(`[birpc] function "${method}" not found`)
       }
-      catch (e) {
-        error = e
+      else {
+        try {
+          result = await fn.apply(rpc, args)
+        }
+        catch (e) {
+          error = e
+        }
       }
+
       if (msg.i)
         post(serialize(<Response>{ t: 's', i: msg.i, r: result, e: error }), ...extra)
     }
