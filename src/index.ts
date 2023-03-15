@@ -27,13 +27,6 @@ export interface ChannelOptions {
    * by default it passes the data as-is
    */
   deserialize?: (data: any) => any
-
-  /**
-   * Custom resolver to resolve function to be called
-   *
-   * For advanced use cases only
-   */
-  resolver?: BirpcResolver
 }
 
 export interface EventOptions<Remote> {
@@ -48,6 +41,13 @@ export interface EventOptions<Remote> {
    * @default 60_000
    */
   timeout?: number
+
+  /**
+   * Custom resolver to resolve function to be called
+   *
+   * For advanced use cases only
+   */
+  resolver?: BirpcResolver
 }
 
 export type BirpcOptions<Remote> = EventOptions<Remote> & ChannelOptions
