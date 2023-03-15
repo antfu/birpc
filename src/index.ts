@@ -4,6 +4,8 @@ export type PromisifyFn<T> = ReturnType<T> extends Promise<any>
   ? T
   : (...args: ArgumentsType<T>) => Promise<Awaited<ReturnType<T>>>
 
+export type BirpcResolver = (name: string, resolved: Function) => Function | undefined
+
 export interface ChannelOptions {
   /**
    * Function to post raw message
@@ -31,7 +33,7 @@ export interface ChannelOptions {
    *
    * For advanced use cases only
    */
-  resolver?: (name: string, resolved: Function) => Function | undefined
+  resolver?: BirpcResolver
 }
 
 export interface EventOptions<Remote> {
