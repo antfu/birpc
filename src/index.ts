@@ -48,6 +48,11 @@ export interface EventOptions<Remote> {
    * For advanced use cases only
    */
   resolver?: BirpcResolver
+
+  /**
+   * Custom error handler
+   */
+  onError?: (error: Error, functionName: string, args: any[]) => boolean | void
 }
 
 export type BirpcOptions<Remote> = EventOptions<Remote> & ChannelOptions
@@ -201,8 +206,11 @@ export function createBirpc<RemoteFunctions = {}, LocalFunctions = {}>(
         }
       }
 
-      if (msg.i)
+      if (msg.i) {
+        if (error && options.onError)
+          options.onError(error, method, args)
         post(serialize(<Response>{ t: 's', i: msg.i, r: result, e: error }), ...extra)
+      }
     }
     else {
       const { i: ack, r: result, e: error } = msg
