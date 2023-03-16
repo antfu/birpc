@@ -12,7 +12,7 @@ it('error', async () => {
 
   let error: any
 
-  const bob = createBirpc<AliceFunctions, BobFunctions>(
+  const _bob = createBirpc<AliceFunctions, BobFunctions>(
     { ...Bob },
     {
       post: data => channel.port1.postMessage(data),
