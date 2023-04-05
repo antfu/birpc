@@ -43,11 +43,6 @@ export interface EventOptions<Remote> {
   timeout?: number
 
   /**
-   * Timeout implementation in case global timeout is not reliable.
-   */
-  setTimeout?: typeof globalThis.setTimeout
-
-  /**
    * Custom resolver to resolve function to be called
    *
    * For advanced use cases only
@@ -140,6 +135,9 @@ export const DEFAULT_TIMEOUT = 60_000 // 1 minute
 const defaultSerialize = (i: any) => i
 const defaultDeserialize = defaultSerialize
 
+// store setTimeout locally in case it is overriden later
+const { setTimeout } = globalThis
+
 export function createBirpc<RemoteFunctions = {}, LocalFunctions = {}>(
   functions: LocalFunctions,
   options: BirpcOptions<RemoteFunctions>,
@@ -151,7 +149,6 @@ export function createBirpc<RemoteFunctions = {}, LocalFunctions = {}>(
     serialize = defaultSerialize,
     deserialize = defaultDeserialize,
     resolver,
-    setTimeout = globalThis.setTimeout,
     timeout = DEFAULT_TIMEOUT,
   } = options
 
