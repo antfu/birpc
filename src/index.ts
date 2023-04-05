@@ -43,6 +43,11 @@ export interface EventOptions<Remote> {
   timeout?: number
 
   /**
+   * Timeout implementation in case global timeout is not reliable.
+   */
+  setTimeout?: typeof globalThis.setTimeout
+
+  /**
    * Custom resolver to resolve function to be called
    *
    * For advanced use cases only
@@ -146,6 +151,7 @@ export function createBirpc<RemoteFunctions = {}, LocalFunctions = {}>(
     serialize = defaultSerialize,
     deserialize = defaultDeserialize,
     resolver,
+    setTimeout = globalThis.setTimeout,
     timeout = DEFAULT_TIMEOUT,
   } = options
 
