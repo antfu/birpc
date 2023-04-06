@@ -135,6 +135,9 @@ export const DEFAULT_TIMEOUT = 60_000 // 1 minute
 const defaultSerialize = (i: any) => i
 const defaultDeserialize = defaultSerialize
 
+// store setTimeout locally in case it is overriden later
+const { setTimeout } = globalThis
+
 export function createBirpc<RemoteFunctions = {}, LocalFunctions = {}>(
   functions: LocalFunctions,
   options: BirpcOptions<RemoteFunctions>,
