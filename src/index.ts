@@ -132,7 +132,9 @@ type RPCMessage = Request | Response
 
 export const DEFAULT_TIMEOUT = 60_000 // 1 minute
 
-const defaultSerialize = (i: any) => i
+function defaultSerialize(i: any) {
+  return i
+}
 const defaultDeserialize = defaultSerialize
 
 // store setTimeout locally in case it is overriden later
