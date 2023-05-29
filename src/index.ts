@@ -137,8 +137,9 @@ function defaultSerialize(i: any) {
 }
 const defaultDeserialize = defaultSerialize
 
-// store setTimeout locally in case it is overriden later
+// Store public APIs locally in case they are overriden later
 const { setTimeout } = globalThis
+const random = Math.random.bind(Math)
 
 export function createBirpc<RemoteFunctions = {}, LocalFunctions = {}>(
   functions: LocalFunctions,
@@ -297,6 +298,6 @@ function nanoid(size = 21) {
   let id = ''
   let i = size
   while (i--)
-    id += urlAlphabet[(Math.random() * 64) | 0]
+    id += urlAlphabet[(random() * 64) | 0]
   return id
 }
