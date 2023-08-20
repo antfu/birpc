@@ -155,7 +155,7 @@ export function createBirpc<RemoteFunctions = {}, LocalFunctions = {}>(
     timeout = DEFAULT_TIMEOUT,
   } = options
 
-  const rpcPromiseMap = new Map<string, { resolve: Function; reject: Function }>()
+  const rpcPromiseMap = new Map<string, { resolve: Function; reject: Function; timeoutId: Parameters<typeof clearTimeout>[0] }>()
 
   let _promise: Promise<any> | any
 
@@ -176,14 +176,17 @@ export function createBirpc<RemoteFunctions = {}, LocalFunctions = {}>(
         await _promise
         return new Promise((resolve, reject) => {
           const id = nanoid()
-          rpcPromiseMap.set(id, { resolve, reject })
-          post(serialize(<Request>{ m: method, a: args, i: id, t: 'q' }))
+          let timeoutId
+
           if (timeout >= 0) {
-            setTimeout(() => {
+            timeoutId = setTimeout(() => {
               reject(new Error(`[birpc] timeout on calling "${method}"`))
               rpcPromiseMap.delete(id)
             }, timeout).unref?.()
           }
+
+          rpcPromiseMap.set(id, { resolve, reject, timeoutId })
+          post(serialize(<Request>{ m: method, a: args, i: id, t: 'q' }))
         })
       }
       sendCall.asEvent = sendEvent
@@ -222,6 +225,8 @@ export function createBirpc<RemoteFunctions = {}, LocalFunctions = {}>(
       const { i: ack, r: result, e: error } = msg
       const promise = rpcPromiseMap.get(ack)
       if (promise) {
+        clearTimeout(promise.timeoutId)
+
         if (error)
           promise.reject(error)
         else
