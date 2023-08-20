@@ -182,7 +182,7 @@ export function createBirpc<RemoteFunctions = {}, LocalFunctions = {}>(
             setTimeout(() => {
               reject(new Error(`[birpc] timeout on calling "${method}"`))
               rpcPromiseMap.delete(id)
-            }, timeout)
+            }, timeout).unref?.()
           }
         })
       }
