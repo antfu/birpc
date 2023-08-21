@@ -18,7 +18,7 @@ it('resolver', async () => {
     },
   )
 
-  let customResolverFn: Function | undefined
+  let customResolverFn: ((...args: any[]) => any) | undefined
 
   const alice = createBirpc<BobFunctions, AliceFunctions>(
     { ...Alice },

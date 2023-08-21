@@ -4,7 +4,7 @@ export type PromisifyFn<T> = ReturnType<T> extends Promise<any>
   ? T
   : (...args: ArgumentsType<T>) => Promise<Awaited<ReturnType<T>>>
 
-export type BirpcResolver = (name: string, resolved: Function) => Function | undefined
+export type BirpcResolver = (name: string, resolved: (...args: unknown[]) => unknown) => ((...args: unknown[]) => unknown) | undefined
 
 export interface ChannelOptions {
   /**
@@ -75,7 +75,7 @@ export interface BirpcGroupFn<T> {
   asEvent(...args: ArgumentsType<T>): void
 }
 
-export type BirpcReturn<RemoteFunctions, LocalFunctions = {}> = {
+export type BirpcReturn<RemoteFunctions, LocalFunctions = Record<string, never>> = {
   [K in keyof RemoteFunctions]: BirpcFn<RemoteFunctions[K]>
 } & { $functions: LocalFunctions }
 
@@ -83,7 +83,7 @@ export type BirpcGroupReturn<RemoteFunctions> = {
   [K in keyof RemoteFunctions]: BirpcGroupFn<RemoteFunctions[K]>
 }
 
-export interface BirpcGroup<RemoteFunctions, LocalFunctions = {}> {
+export interface BirpcGroup<RemoteFunctions, LocalFunctions = Record<string, never>> {
   readonly clients: BirpcReturn<RemoteFunctions, LocalFunctions>[]
   readonly functions: LocalFunctions
   readonly broadcast: BirpcGroupReturn<RemoteFunctions>
@@ -137,11 +137,11 @@ function defaultSerialize(i: any) {
 }
 const defaultDeserialize = defaultSerialize
 
-// Store public APIs locally in case they are overriden later
+// Store public APIs locally in case they are overridden later
 const { setTimeout } = globalThis
 const random = Math.random.bind(Math)
 
-export function createBirpc<RemoteFunctions = {}, LocalFunctions = {}>(
+export function createBirpc<RemoteFunctions = Record<string, never>, LocalFunctions = Record<string, never>>(
   functions: LocalFunctions,
   options: BirpcOptions<RemoteFunctions>,
 ): BirpcReturn<RemoteFunctions, LocalFunctions> {
@@ -155,7 +155,7 @@ export function createBirpc<RemoteFunctions = {}, LocalFunctions = {}>(
     timeout = DEFAULT_TIMEOUT,
   } = options
 
-  const rpcPromiseMap = new Map<string, { resolve: Function; reject: Function; timeoutId: Parameters<typeof clearTimeout>[0] }>()
+  const rpcPromiseMap = new Map<string, { resolve: (arg: any) => void; reject: (error: any) => void; timeoutId: Parameters<typeof clearTimeout>[0] }>()
 
   let _promise: Promise<any> | any
 
@@ -251,7 +251,7 @@ export function cachedMap<T, R>(items: T[], fn: ((i: T) => R)): R[] {
   })
 }
 
-export function createBirpcGroup<RemoteFunctions = {}, LocalFunctions = {}>(
+export function createBirpcGroup<RemoteFunctions = Record<string, never>, LocalFunctions = Record<string, never>>(
   functions: LocalFunctions,
   channels: ChannelOptions[] | (() => ChannelOptions[]),
   options: EventOptions<RemoteFunctions> = {},
