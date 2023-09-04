@@ -138,7 +138,7 @@ function defaultSerialize(i: any) {
 const defaultDeserialize = defaultSerialize
 
 // Store public APIs locally in case they are overridden later
-const { setTimeout } = globalThis
+const { clearTimeout, setTimeout } = globalThis
 const random = Math.random.bind(Math)
 
 export function createBirpc<RemoteFunctions = Record<string, never>, LocalFunctions = Record<string, never>>(
