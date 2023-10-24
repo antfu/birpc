@@ -40,6 +40,7 @@
     "prepublishOnly": "nr build",
     "release": "bumpp && pnpm publish",
     "start": "esno src/index.ts",
+    "typecheck": "tsc --noEmit",
     "test": "vitest"
   },
   "devDependencies": {
