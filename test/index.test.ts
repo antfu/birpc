@@ -10,7 +10,7 @@ type AliceFunctions = typeof Alice
 it('basic', async () => {
   const channel = new MessageChannel()
 
-  const bob = createBirpc<AliceFunctions>(
+  const bob = createBirpc<AliceFunctions, BobFunctions>(
     Bob,
     {
       post: data => channel.port1.postMessage(data),
@@ -18,7 +18,7 @@ it('basic', async () => {
     },
   )
 
-  const alice = createBirpc<BobFunctions>(
+  const alice = createBirpc<BobFunctions, AliceFunctions>(
     Alice,
     {
       // mark bob's `bump` as an event without response

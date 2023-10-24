@@ -5,11 +5,12 @@ import * as Bob from './bob'
 import type * as Alice from './alice'
 
 type AliceFunctions = typeof Alice
+type BobFunctions = typeof Bob
 
 it('timeout', async () => {
   const channel = new MessageChannel()
 
-  const bob = createBirpc<AliceFunctions>(
+  const bob = createBirpc<AliceFunctions, BobFunctions>(
     Bob,
     {
       post: data => channel.port1.postMessage(data),

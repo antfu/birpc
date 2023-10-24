@@ -12,7 +12,7 @@ it('group', async () => {
   const channel2 = new MessageChannel()
   const channel3 = new MessageChannel()
 
-  const client1 = createBirpc<AliceFunctions>(
+  const client1 = createBirpc<AliceFunctions, BobFunctions>(
     Bob,
     {
       post: data => channel1.port1.postMessage(data),
@@ -22,14 +22,14 @@ it('group', async () => {
       },
     },
   )
-  const client2 = createBirpc<AliceFunctions>(
+  const client2 = createBirpc<AliceFunctions, BobFunctions>(
     Bob,
     {
       post: data => channel2.port1.postMessage(data),
       on: data => channel2.port1.on('message', data),
     },
   )
-  const client3 = createBirpc<AliceFunctions>(
+  const client3 = createBirpc<AliceFunctions, BobFunctions>(
     Bob,
     {
       post: data => channel3.port1.postMessage(data),
@@ -37,7 +37,7 @@ it('group', async () => {
     },
   )
 
-  const server = createBirpcGroup<BobFunctions>(
+  const server = createBirpcGroup<BobFunctions, AliceFunctions>(
     Alice,
     [
       {
