@@ -20,10 +20,10 @@ it('timeout', async () => {
   )
 
   try {
-    await bob.hello('Bob')
+    await bob.hello('Bob', ['more', 'arguments'], { deeply: { nested: { object: true } } })
     expect(1).toBe(2)
   }
   catch (e) {
-    expect(e).toMatchInlineSnapshot('[Error: [birpc] timeout on calling "hello"]')
+    expect(e).toMatchInlineSnapshot('[Error: [birpc] timeout on calling "hello" with arguments "Bob,more,arguments,{"deeply":"[object Object]"}"]')
   }
 })

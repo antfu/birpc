@@ -180,7 +180,7 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
 
           if (timeout >= 0) {
             timeoutId = setTimeout(() => {
-              reject(new Error(`[birpc] timeout on calling "${method}"`))
+              reject(new Error(`[birpc] timeout on calling "${method}" with arguments "${args.map(stringifyArg)}"`))
               rpcPromiseMap.delete(id)
             }, timeout).unref?.()
           }
@@ -305,4 +305,17 @@ function nanoid(size = 21) {
   while (i--)
     id += urlAlphabet[(random() * 64) | 0]
   return id
+}
+
+function stringifyArg(arg: any) {
+  const string = String(arg)
+
+  if (string !== '[object Object]')
+    return string
+
+  const oneLevel = Object.entries(arg).reduce(
+    (all, [name, value]) => ({ ...all, [name]: String(value) }),
+    {},
+  )
+  return JSON.stringify(oneLevel)
 }
