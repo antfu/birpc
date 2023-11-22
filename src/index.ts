@@ -155,7 +155,7 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
     timeout = DEFAULT_TIMEOUT,
   } = options
 
-  const rpcPromiseMap = new Map<string, { resolve: (arg: any) => void; reject: (error: any) => void; timeoutId: Parameters<typeof clearTimeout>[0] }>()
+  const rpcPromiseMap = new Map<string, { resolve: (arg: any) => void, reject: (error: any) => void, timeoutId: Parameters<typeof clearTimeout>[0] }>()
 
   let _promise: Promise<any> | any
 

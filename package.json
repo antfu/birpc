@@ -1,5 +1,6 @@
 {
   "name": "birpc",
+  "type": "module",
   "version": "0.2.14",
   "packageManager": "pnpm@8.7.1",
   "description": "Message based Two-way remote procedure call",
@@ -42,7 +43,7 @@
     "test": "vitest"
   },
   "devDependencies": {
-    "@antfu/eslint-config": "^0.41.0",
+    "@antfu/eslint-config": "^2.1.0",
     "@antfu/ni": "^0.21.8",
     "@types/node": "^20.5.9",
     "bumpp": "^9.2.0",
