@@ -53,6 +53,11 @@ export interface EventOptions<Remote> {
    * Custom error handler
    */
   onError?: (error: Error, functionName: string, args: any[]) => boolean | void
+
+  /**
+   * Custom error handler for timeouts
+   */
+  onTimeoutError?: (functionName: string, args: any[]) => boolean | void
 }
 
 export type BirpcOptions<Remote> = EventOptions<Remote> & ChannelOptions
@@ -180,7 +185,14 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
 
           if (timeout >= 0) {
             timeoutId = setTimeout(() => {
-              reject(new Error(`[birpc] timeout on calling "${method}"`))
+              try {
+                // Custom onTimeoutError handler can throw its own error too
+                options.onTimeoutError?.(method, args)
+                throw new Error(`[birpc] timeout on calling "${method}"`)
+              }
+              catch (e) {
+                reject(e)
+              }
               rpcPromiseMap.delete(id)
             }, timeout).unref?.()
           }
