@@ -1,7 +1,7 @@
 {
   "name": "birpc",
   "type": "module",
-  "version": "0.2.14",
+  "version": "0.2.15",
   "packageManager": "pnpm@8.14.3",
   "description": "Message based Two-way remote procedure call",
   "author": "Anthony Fu <anthonyfu117@hotmail.com>",
