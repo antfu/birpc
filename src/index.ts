@@ -146,7 +146,7 @@ const defaultDeserialize = defaultSerialize
 const { clearTimeout, setTimeout } = globalThis
 const random = Math.random.bind(Math)
 
-export function createBirpc<RemoteFunctions = Record<string, never>, LocalFunctions = Record<string, never>>(
+export function createBirpc<RemoteFunctions = Record<string, never>, LocalFunctions extends object = Record<string, never>>(
   functions: LocalFunctions,
   options: BirpcOptions<RemoteFunctions>,
 ): BirpcReturn<RemoteFunctions, LocalFunctions> {
@@ -168,6 +168,10 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
     get(_, method: string) {
       if (method === '$functions')
         return functions
+
+      // catch if "createBirpc" is returned from async function
+      if (method === 'then' && !eventNames.includes('then' as any) && !('then' in functions))
+        return undefined
 
       const sendEvent = (...args: any[]) => {
         post(serialize(<Request>{ m: method, a: args, t: 'q' }))
@@ -263,7 +267,7 @@ export function cachedMap<T, R>(items: T[], fn: ((i: T) => R)): R[] {
   })
 }
 
-export function createBirpcGroup<RemoteFunctions = Record<string, never>, LocalFunctions = Record<string, never>>(
+export function createBirpcGroup<RemoteFunctions = Record<string, never>, LocalFunctions extends object = Record<string, never>>(
   functions: LocalFunctions,
   channels: ChannelOptions[] | (() => ChannelOptions[]),
   options: EventOptions<RemoteFunctions> = {},
