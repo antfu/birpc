@@ -66,7 +66,7 @@ export type BirpcFn<T> = PromisifyFn<T> & {
   /**
    * Send event without asking for response
    */
-  asEvent(...args: ArgumentsType<T>): void
+  asEvent: (...args: ArgumentsType<T>) => void
 }
 
 export interface BirpcGroupFn<T> {
@@ -77,7 +77,7 @@ export interface BirpcGroupFn<T> {
   /**
    * Send event without asking for response
    */
-  asEvent(...args: ArgumentsType<T>): void
+  asEvent: (...args: ArgumentsType<T>) => void
 }
 
 export type BirpcReturn<RemoteFunctions, LocalFunctions = Record<string, never>> = {
@@ -92,7 +92,7 @@ export interface BirpcGroup<RemoteFunctions, LocalFunctions = Record<string, nev
   readonly clients: BirpcReturn<RemoteFunctions, LocalFunctions>[]
   readonly functions: LocalFunctions
   readonly broadcast: BirpcGroupReturn<RemoteFunctions>
-  updateChannels(fn?: ((channels: ChannelOptions[]) => void)): BirpcReturn<RemoteFunctions, LocalFunctions>[]
+  updateChannels: (fn?: ((channels: ChannelOptions[]) => void)) => BirpcReturn<RemoteFunctions, LocalFunctions>[]
 }
 
 interface Request {
