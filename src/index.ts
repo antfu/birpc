@@ -160,7 +160,7 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
     timeout = DEFAULT_TIMEOUT,
   } = options
 
-  const rpcPromiseMap = new Map<string, { resolve: (arg: any) => void, reject: (error: any) => void, timeoutId: Parameters<typeof clearTimeout>[0] }>()
+  const rpcPromiseMap = new Map<string, { resolve: (arg: any) => void, reject: (error: any) => void, timeoutId?: ReturnType<typeof setTimeout> }>()
 
   let _promise: Promise<any> | any
 
@@ -185,7 +185,7 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
         await _promise
         return new Promise((resolve, reject) => {
           const id = nanoid()
-          let timeoutId
+          let timeoutId: ReturnType<typeof setTimeout> | undefined
 
           if (timeout >= 0) {
             timeoutId = setTimeout(() => {
@@ -198,7 +198,11 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
                 reject(e)
               }
               rpcPromiseMap.delete(id)
-            }, timeout).unref?.()
+            }, timeout)
+
+            // For node.js, `unref` is not available in browser-like environments
+            if (typeof timeoutId === 'object')
+              timeoutId = timeoutId.unref?.()
           }
 
           rpcPromiseMap.set(id, { resolve, reject, timeoutId })
