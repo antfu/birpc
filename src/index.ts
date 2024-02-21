@@ -201,9 +201,8 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
             }, timeout)
 
             // For node.js, `unref` is not available in browser-like environments
-            if (typeof timeoutId === 'object') {
+            if (typeof timeoutId === 'object')
               timeoutId = timeoutId.unref?.()
-            }
           }
 
           rpcPromiseMap.set(id, { resolve, reject, timeoutId })
