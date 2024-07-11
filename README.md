@@ -63,7 +63,7 @@ wss.on('connection', (ws) => {
     serverFunctions,
     {
       post: data => ws.send(data),
-      on: data => ws.on('message', data),
+      on: fn => ws.on('message', fn),
       serialize: v => JSON.stringify(v),
       deserialize: v => JSON.parse(v),
     },
@@ -84,7 +84,7 @@ const rpc = createBirpc<ServerFunctions>(
   functions,
   {
     post: data => ws.send(data),
-    on: data => ws.on('message', data),
+    on: fn => ws.on('message', fn),
     // use flatted as serializer
     serialize: v => stringify(v),
     deserialize: v => parse(v),
@@ -116,7 +116,7 @@ const rpc = createBirpc<AliceFunctions>(
   Bob,
   {
     post: data => channel.port1.postMessage(data),
-    on: data => channel.port1.on('message', data),
+    on: fn => channel.port1.on('message', fn),
   },
 )
 
@@ -139,7 +139,7 @@ const rpc = createBirpc<BobFunctions>(
   Alice,
   {
     post: data => channel.port2.postMessage(data),
-    on: data => channel.port2.on('message', data),
+    on: fn => channel.port2.on('message', fn),
   },
 )
 
