@@ -17,14 +17,14 @@ function createChannel() {
         // mark bob's `bump` as an event without response
         eventNames: ['bump'],
         post: data => channel.port2.postMessage(data),
-        on: data => channel.port2.on('message', data),
+        on: fn => channel.port2.on('message', fn),
       },
     ),
     bob: createBirpc<AliceFunctions, BobFunctions>(
       Bob,
       {
         post: data => channel.port1.postMessage(data),
-        on: data => channel.port1.on('message', data),
+        on: fn => channel.port1.on('message', fn),
       },
     ),
   }

@@ -14,7 +14,7 @@ it('timeout', async () => {
     Bob,
     {
       post: data => channel.port1.postMessage(data),
-      on: data => channel.port1.on('message', data),
+      on: fn => channel.port1.on('message', fn),
       timeout: 100,
     },
   )
@@ -36,7 +36,7 @@ it('custom onTimeoutError', async () => {
     Bob,
     {
       post: data => channel.port1.postMessage(data),
-      on: data => channel.port1.on('message', data),
+      on: fn => channel.port1.on('message', fn),
       timeout: 100,
       onTimeoutError(functionName, args) {
         onTimeout({ functionName, args })
@@ -63,7 +63,7 @@ it('custom onTimeoutError without custom error', async () => {
     Bob,
     {
       post: data => channel.port1.postMessage(data),
-      on: data => channel.port1.on('message', data),
+      on: fn => channel.port1.on('message', fn),
       timeout: 100,
       onTimeoutError(functionName, args) {
         onTimeout({ functionName, args })
