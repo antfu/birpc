@@ -259,7 +259,7 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
           result = await fn.apply(rpc, args)
 
           // handle async iter result
-          if (result[Symbol.asyncIterator]) {
+          if (result?.[Symbol.asyncIterator]) {
             for await (const iterRes of result) {
               if (msg.i)
                 post(serialize(<Response>{ t: 's', i: msg.i, r: iterRes, d: false, e: error }), ...extra)
