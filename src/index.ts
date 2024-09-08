@@ -67,6 +67,10 @@ export type BirpcFn<T> = PromisifyFn<T> & {
    * Send event without asking for response
    */
   asEvent: (...args: ArgumentsType<T>) => void
+  /**
+   * Call fn as async iterator
+   */
+  asAsyncIter: (...args: ArgumentsType<T>) => ReturnType<T>
 }
 
 export interface BirpcGroupFn<T> {
@@ -131,6 +135,10 @@ interface Response {
    * Error
    */
   e?: any
+  /**
+   * Async iter done
+   */
+  d?: boolean
 }
 
 type RPCMessage = Request | Response
@@ -180,13 +188,13 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
         sendEvent.asEvent = sendEvent
         return sendEvent
       }
+      let id: string
       const sendCall = async (...args: any[]) => {
+        id = nanoid()
         // Wait if `on` is promise
         await _promise
-        return new Promise((resolve, reject) => {
-          const id = nanoid()
+        const callPromise = new Promise((resolve, reject) => {
           let timeoutId: ReturnType<typeof setTimeout> | undefined
-
           if (timeout >= 0) {
             timeoutId = setTimeout(() => {
               try {
@@ -205,9 +213,48 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
               timeoutId = timeoutId.unref?.()
           }
 
-          rpcPromiseMap.set(id, { resolve, reject, timeoutId })
+          rpcPromiseMap.set(id, { resolve, reject, timeoutId, ...rpcPromiseMap.get(id) })
           post(serialize(<Request>{ m: method, a: args, i: id, t: 'q' }))
         })
+        return callPromise
+      }
+      sendCall.asAsyncIter = function sendAsyncIterCall(...args: any[]) {
+        sendCall(...args)
+        async function * asyncIterWrapper() {
+          const buffer: Array<{
+            done: boolean
+            value: any
+            error: any
+          }> = []
+          do {
+            // wait for streaming response and store in buffer
+            await new Promise<void>((resolve) => {
+              rpcPromiseMap.set(id, {
+                ...rpcPromiseMap.get(id),
+                resolve: (v) => {
+                  buffer.push(v)
+                  resolve()
+                },
+                reject: (e) => {
+                  buffer.push({ done: true, value: undefined, error: e })
+                  resolve()
+                },
+              })
+            })
+            while (buffer.length) {
+              const { done, value, error } = buffer.shift()!
+              if (typeof done === 'undefined')
+                throw new Error('[birpc] function return is not async iterable')
+              if (error)
+                throw error
+              if (done)
+                return
+              yield value
+            }
+          } while (true)
+        }
+        const iter = asyncIterWrapper()
+        return iter
       }
       sendCall.asEvent = sendEvent
       return sendCall
@@ -223,14 +270,27 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
         ? resolver(method, (functions as any)[method])
         : (functions as any)[method]
 
+      let isAsyncIter = false
       if (!fn) {
         error = new Error(`[birpc] function "${method}" not found`)
       }
       else {
         try {
           result = await fn.apply(rpc, args)
+
+          // handle async iter result
+          if (result?.[Symbol.asyncIterator]) {
+            isAsyncIter = true
+            for await (const iterRes of result) {
+              if (msg.i)
+                post(serialize(<Response>{ t: 's', i: msg.i, r: iterRes, d: false, e: error }), ...extra)
+            }
+            if (msg.i)
+              return post(serialize(<Response>{ t: 's', i: msg.i, r: undefined, d: true, e: error }), ...extra)
+          }
         }
         catch (e) {
+          result = undefined
           error = e
         }
       }
@@ -238,21 +298,31 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
       if (msg.i) {
         if (error && options.onError)
           options.onError(error, method, args)
-        post(serialize(<Response>{ t: 's', i: msg.i, r: result, e: error }), ...extra)
+        post(serialize(<Response>{ t: 's', i: msg.i, r: result, d: isAsyncIter ? true : undefined, e: error }), ...extra)
       }
     }
     else {
-      const { i: ack, r: result, e: error } = msg
+      const { i: ack, r: result, e: error, d: done } = msg
       const promise = rpcPromiseMap.get(ack)
       if (promise) {
         clearTimeout(promise.timeoutId)
 
-        if (error)
-          promise.reject(error)
-        else
-          promise.resolve(result)
+        if (typeof done === 'boolean') {
+          if (error) { promise.reject(error) }
+          else {
+            promise.resolve({ done, value: result })
+            if (done)
+              rpcPromiseMap.delete(ack)
+          }
+        }
+        else {
+          if (error)
+            promise.reject(error)
+          else
+            promise.resolve(result)
+          rpcPromiseMap.delete(ack)
+        }
       }
-      rpcPromiseMap.delete(ack)
     }
   })
 
