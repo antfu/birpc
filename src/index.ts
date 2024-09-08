@@ -221,17 +221,36 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
       sendCall.asAsyncIter = function sendAsyncIterCall(...args: any[]) {
         sendCall(...args)
         async function * asyncIterWrapper() {
-          let res: undefined | { done: boolean, value: any }
+          const buffer: Array<{
+            done: boolean
+            value: any
+            error: any
+          }> = []
           do {
-            res = await new Promise((resolve, reject) => {
-              rpcPromiseMap.set(id, { ...rpcPromiseMap.get(id), resolve, reject })
+            // wait for streaming response and store in buffer
+            await new Promise<void>((resolve) => {
+              rpcPromiseMap.set(id, {
+                ...rpcPromiseMap.get(id),
+                resolve: (v) => {
+                  buffer.push(v)
+                  resolve()
+                },
+                reject: (e) => {
+                  buffer.push({ done: true, value: undefined, error: e })
+                  resolve()
+                },
+              })
             })
-            if (typeof res?.done === 'undefined')
-              throw new Error('[birpc] function return is not async iterable')
-            if (res.done)
-              return
-            else
-              yield res.value
+            while (buffer.length) {
+              const { done, value, error } = buffer.shift()!
+              if (typeof done === 'undefined')
+                throw new Error('[birpc] function return is not async iterable')
+              if (error)
+                throw error
+              if (done)
+                return
+              yield value
+            }
           } while (true)
         }
         const iter = asyncIterWrapper()
@@ -251,6 +270,7 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
         ? resolver(method, (functions as any)[method])
         : (functions as any)[method]
 
+      let isAsyncIter = false
       if (!fn) {
         error = new Error(`[birpc] function "${method}" not found`)
       }
@@ -260,6 +280,7 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
 
           // handle async iter result
           if (result?.[Symbol.asyncIterator]) {
+            isAsyncIter = true
             for await (const iterRes of result) {
               if (msg.i)
                 post(serialize(<Response>{ t: 's', i: msg.i, r: iterRes, d: false, e: error }), ...extra)
@@ -277,7 +298,7 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
       if (msg.i) {
         if (error && options.onError)
           options.onError(error, method, args)
-        post(serialize(<Response>{ t: 's', i: msg.i, r: result, e: error }), ...extra)
+        post(serialize(<Response>{ t: 's', i: msg.i, r: result, d: isAsyncIter ? true : undefined, e: error }), ...extra)
       }
     }
     else {
