@@ -30,9 +30,12 @@ function createChannel() {
   }
 }
 
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
 async function toArray<T>(iter: AsyncIterable<T>) {
   const arr = []
-  for await (const i of iter) arr.push(i)
+  for await (const i of iter)
+    arr.push(i)
   return arr as T[]
 }
 
@@ -41,7 +44,12 @@ it('async generator', async () => {
 
   const iter = bob.helloAsyncGenerator.asAsyncIter('Bob')
 
-  const arr = await toArray(iter)
+  const arr = []
+  for await (const i of iter) {
+    // consume longer than push interval
+    await sleep(100)
+    arr.push(i)
+  }
 
   expect(arr).toEqual([
     'Hello Bob, my name is Alice',
