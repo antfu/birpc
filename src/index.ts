@@ -16,6 +16,10 @@ export interface ChannelOptions {
    */
   on: (fn: (data: any, ...extras: any[]) => void) => any | Promise<any>
   /**
+   * Clear the listener when `$close` is called
+   */
+  off?: (fn: (data: any, ...extras: any[]) => void) => any | Promise<any>
+  /**
    * Custom function to serialize data
    *
    * by default it passes the data as-is
@@ -27,6 +31,11 @@ export interface ChannelOptions {
    * by default it passes the data as-is
    */
   deserialize?: (data: any) => any
+
+  /**
+   * Call the methods with the RPC context or the original functions object
+   */
+  bind?: 'rpc' | 'functions'
 }
 
 export interface EventOptions<Remote> {
@@ -82,7 +91,7 @@ export interface BirpcGroupFn<T> {
 
 export type BirpcReturn<RemoteFunctions, LocalFunctions = Record<string, never>> = {
   [K in keyof RemoteFunctions]: BirpcFn<RemoteFunctions[K]>
-} & { $functions: LocalFunctions }
+} & { $functions: LocalFunctions, $close: () => void }
 
 export type BirpcGroupReturn<RemoteFunctions> = {
   [K in keyof RemoteFunctions]: BirpcGroupFn<RemoteFunctions[K]>
@@ -153,21 +162,27 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
   const {
     post,
     on,
+    off = () => {},
     eventNames = [],
     serialize = defaultSerialize,
     deserialize = defaultDeserialize,
     resolver,
+    bind = 'rpc',
     timeout = DEFAULT_TIMEOUT,
   } = options
 
   const rpcPromiseMap = new Map<string, { resolve: (arg: any) => void, reject: (error: any) => void, timeoutId?: ReturnType<typeof setTimeout> }>()
 
   let _promise: Promise<any> | any
+  let closed = false
 
   const rpc = new Proxy({}, {
     get(_, method: string) {
       if (method === '$functions')
         return functions
+
+      if (method === '$close')
+        return close
 
       // catch if "createBirpc" is returned from async function
       if (method === 'then' && !eventNames.includes('then' as any) && !('then' in functions))
@@ -181,8 +196,18 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
         return sendEvent
       }
       const sendCall = async (...args: any[]) => {
-        // Wait if `on` is promise
-        await _promise
+        if (closed)
+          throw new Error(`[birpc] rpc is closed, cannot call "${method}"`)
+        if (_promise) {
+          // Wait if `on` is promise
+          try {
+            await _promise
+          }
+          finally {
+            // don't keep resolved promise hanging
+            _promise = undefined
+          }
+        }
         return new Promise((resolve, reject) => {
           const id = nanoid()
           let timeoutId: ReturnType<typeof setTimeout> | undefined
@@ -214,7 +239,16 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
     },
   }) as BirpcReturn<RemoteFunctions, LocalFunctions>
 
-  _promise = on(async (data, ...extra) => {
+  function close() {
+    closed = true
+    rpcPromiseMap.forEach(({ reject }) => {
+      reject(new Error('[birpc] rpc is closed'))
+    })
+    rpcPromiseMap.clear()
+    off(onMessage)
+  }
+
+  async function onMessage(data: any, ...extra: any[]) {
     const msg = deserialize(data) as RPCMessage
     if (msg.t === 'q') {
       const { m: method, a: args } = msg
@@ -228,7 +262,7 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
       }
       else {
         try {
-          result = await fn.apply(rpc, args)
+          result = await fn.apply(bind === 'rpc' ? rpc : functions, args)
         }
         catch (e) {
           error = e
@@ -254,7 +288,9 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
       }
       rpcPromiseMap.delete(ack)
     }
-  })
+  }
+
+  _promise = on(onMessage)
 
   return rpc
 }
