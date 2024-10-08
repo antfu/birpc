@@ -208,9 +208,13 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
           throw new Error(`[birpc] rpc is closed, cannot call "${method}"`)
         if (_promise) {
           // Wait if `on` is promise
-          await _promise.finally(() => {
+          try {
+            await _promise
+          }
+          finally {
+            // don't keep resolved promise hanging
             _promise = undefined
-          })
+          }
         }
         return new Promise((resolve, reject) => {
           const id = nanoid()
