@@ -171,7 +171,12 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
     timeout = DEFAULT_TIMEOUT,
   } = options
 
-  const rpcPromiseMap = new Map<string, { resolve: (arg: any) => void, reject: (error: any) => void, timeoutId?: ReturnType<typeof setTimeout> }>()
+  const rpcPromiseMap = new Map<string, {
+    resolve: (arg: any) => void
+    reject: (error: any) => void
+    method: string
+    timeoutId?: ReturnType<typeof setTimeout>
+  }>()
 
   let _promise: Promise<any> | any
   let closed = false
@@ -230,7 +235,7 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
               timeoutId = timeoutId.unref?.()
           }
 
-          rpcPromiseMap.set(id, { resolve, reject, timeoutId })
+          rpcPromiseMap.set(id, { resolve, reject, timeoutId, method })
           post(serialize(<Request>{ m: method, a: args, i: id, t: 'q' }))
         })
       }
@@ -241,8 +246,8 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
 
   function close() {
     closed = true
-    rpcPromiseMap.forEach(({ reject }) => {
-      reject(new Error('[birpc] rpc is closed'))
+    rpcPromiseMap.forEach(({ reject, method }) => {
+      reject(new Error(`[birpc] rpc is closed, cannot call "${method}"`))
     })
     rpcPromiseMap.clear()
     off(onMessage)
