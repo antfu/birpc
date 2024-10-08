@@ -14,7 +14,7 @@ it('stops the rpc promises', async () => {
     },
     (err) => {
       // Promise should reject
-      expect(err.message).toBe('[birpc] rpc is closed')
+      expect(err.message).toBe('[birpc] rpc is closed, cannot call "hello"')
     },
   )
   nextTick(() => {
