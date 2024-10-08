@@ -3,6 +3,7 @@ import { expect, it } from 'vitest'
 import { createBirpc } from '../src'
 
 it('stops the rpc promises', async () => {
+  expect.assertions(2)
   const rpc = createBirpc<{ hello: () => string }>({}, {
     on() {},
     post() {},
