@@ -181,16 +181,8 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
       if (method === '$functions')
         return functions
 
-      if (method === '$close') {
-        return () => {
-          closed = true
-          rpcPromiseMap.forEach(({ reject }) => {
-            reject(new Error('[birpc] rpc is closed'))
-          })
-          rpcPromiseMap.clear()
-          off(onMessage)
-        }
-      }
+      if (method === '$close')
+        return close
 
       // catch if "createBirpc" is returned from async function
       if (method === 'then' && !eventNames.includes('then' as any) && !('then' in functions))
@@ -246,6 +238,15 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
       return sendCall
     },
   }) as BirpcReturn<RemoteFunctions, LocalFunctions>
+
+  function close() {
+    closed = true
+    rpcPromiseMap.forEach(({ reject }) => {
+      reject(new Error('[birpc] rpc is closed'))
+    })
+    rpcPromiseMap.clear()
+    off(onMessage)
+  }
 
   async function onMessage(data: any, ...extra: any[]) {
     const msg = deserialize(data) as RPCMessage
