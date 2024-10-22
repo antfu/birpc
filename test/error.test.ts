@@ -1,8 +1,8 @@
 import { MessageChannel } from 'node:worker_threads'
 import { expect, it } from 'vitest'
 import { createBirpc } from '../src'
-import * as Bob from './bob'
 import * as Alice from './alice'
+import * as Bob from './bob'
 
 type BobFunctions = typeof Bob
 type AliceFunctions = typeof Alice
@@ -37,7 +37,7 @@ it('error', async () => {
     // @ts-expect-error `foo` is not defined
     await alice.foo('Bob')
   }
-  catch (err) {
+  catch {
   }
 
   expect(error).toMatchInlineSnapshot(`

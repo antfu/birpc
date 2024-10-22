@@ -47,8 +47,8 @@ await rpc.hi('Client') // Hi Client from server
 #### Server
 
 ```ts
-import { WebSocketServer } from 'ws'
 import type { ClientFunctions } from './types'
+import { WebSocketServer } from 'ws'
 
 const serverFunctions: ServerFunctions = {
   hi(name: string) {

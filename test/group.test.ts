@@ -1,8 +1,8 @@
 import { MessageChannel } from 'node:worker_threads'
 import { expect, it } from 'vitest'
 import { createBirpc, createBirpcGroup } from '../src'
-import * as Bob from './bob'
 import * as Alice from './alice'
+import * as Bob from './bob'
 
 type BobFunctions = typeof Bob
 type AliceFunctions = typeof Alice
