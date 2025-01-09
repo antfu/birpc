@@ -23,9 +23,6 @@ importers:
       eslint:
         specifier: ^9.17.0
         version: 9.17.0(jiti@2.4.2)
-      esno:
-        specifier: ^4.8.0
-        version: 4.8.0
       tsx:
         specifier: ^4.19.2
         version: 4.19.2
@@ -1512,10 +1509,6 @@ packages:
     peerDependenciesMeta:
       jiti:
         optional: true
-
-  esno@4.8.0:
-    resolution: {integrity: sha512-acMtooReAQGzLU0zcuEDHa8S62meh5aIyi8jboYxyvAePdmuWx2Mpwmt0xjwO0bs9/SXf+dvXJ0QJoDWw814Iw==}
-    hasBin: true
 
   espree@10.3.0:
     resolution: {integrity: sha512-0QYC8b24HWY8zjRnDTL6RiHfDbAWn63qb4LMj1Z4b076A4une81+z03Kg7l7mn/48PUTqoLptSXez8oknU8Clg==}
@@ -4309,10 +4302,6 @@ snapshots:
       jiti: 2.4.2
     transitivePeerDependencies:
       - supports-color
-
-  esno@4.8.0:
-    dependencies:
-      tsx: 4.19.2
 
   espree@10.3.0:
     dependencies:
