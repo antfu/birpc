@@ -61,23 +61,23 @@ export interface EventOptions<Remote> {
   /**
    * Custom error handler
    *
-   * @deprecated use `onRemoteError` and `onLocalError` instead
+   * @deprecated use `onFunctionError` and `onGeneralError` instead
    */
   onError?: (error: Error, functionName: string, args: any[]) => boolean | void
 
   /**
-   * Custom error handler for errors occurred in remote functions
+   * Custom error handler for errors occurred in local functions being called
    *
    * @returns `true` to prevent the error from being thrown
    */
-  onRemoteError?: (error: Error, functionName: string, args: any[]) => boolean | void
+  onFunctionError?: (error: Error, functionName: string, args: any[]) => boolean | void
 
   /**
-   * Custom error handler for errors occurred in local functions or during serialization
+   * Custom error handler for errors occurred during serialization or messsaging
    *
    * @returns `true` to prevent the error from being thrown
    */
-  onLocalError?: (error: Error, functionName?: string, args?: any[]) => boolean | void
+  onGeneralError?: (error: Error, functionName?: string, args?: any[]) => boolean | void
 
   /**
    * Custom error handler for timeouts
@@ -282,7 +282,7 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
       msg = deserialize(data) as RPCMessage
     }
     catch (e) {
-      if (options.onLocalError?.(e as Error) !== true)
+      if (options.onGeneralError?.(e as Error) !== true)
         throw e
       return
     }
@@ -310,8 +310,8 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
         // Error handling
         if (error && options.onError)
           options.onError(error, method, args)
-        if (error && options.onRemoteError) {
-          if (options.onRemoteError(error, method, args) === true)
+        if (error && options.onFunctionError) {
+          if (options.onFunctionError(error, method, args) === true)
             return
         }
 
@@ -323,7 +323,7 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
           }
           catch (e) {
             error = e
-            if (options.onLocalError?.(e as Error, method, args) !== true)
+            if (options.onGeneralError?.(e as Error, method, args) !== true)
               throw e
           }
         }
@@ -332,7 +332,7 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
           post(serialize(<Response>{ t: TYPE_RESPONSE, i: msg.i, e: error }), ...extra)
         }
         catch (e) {
-          if (options.onLocalError?.(e as Error, method, args) !== true)
+          if (options.onGeneralError?.(e as Error, method, args) !== true)
             throw e
         }
       }

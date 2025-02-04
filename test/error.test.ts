@@ -7,7 +7,7 @@ import * as Bob from './bob'
 type BobFunctions = typeof Bob
 type AliceFunctions = typeof Alice
 
-it('on remote error', async () => {
+it('on function error', async () => {
   const channel = new MessageChannel()
 
   let error: any
@@ -17,7 +17,7 @@ it('on remote error', async () => {
     {
       post: data => channel.port1.postMessage(data),
       on: fn => channel.port1.on('message', fn),
-      onRemoteError(err, method, args) {
+      onFunctionError(err, method, args) {
         error = { err, method, args }
       },
     },
@@ -66,7 +66,7 @@ it('on serialize error', async () => {
       },
       post: data => channel.port1.postMessage(data),
       on: fn => channel.port1.on('message', fn),
-      onLocalError(err, method, args) {
+      onGeneralError(err, method, args) {
         error = { err, method, args }
         return true
       },
@@ -112,7 +112,7 @@ it('on parse error', async () => {
       },
       post: data => channel.port1.postMessage(data),
       on: fn => channel.port1.on('message', fn),
-      onLocalError(err, method, args) {
+      onGeneralError(err, method, args) {
         error = { err, method, args }
         return true
       },
