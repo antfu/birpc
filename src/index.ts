@@ -60,11 +60,29 @@ export interface EventOptions<Remote> {
 
   /**
    * Custom error handler
+   *
+   * @deprecated use `onRemoteError` and `onLocalError` instead
    */
   onError?: (error: Error, functionName: string, args: any[]) => boolean | void
 
   /**
+   * Custom error handler for errors occurred in remote functions
+   *
+   * @returns `true` to prevent the error from being thrown
+   */
+  onRemoteError?: (error: Error, functionName: string, args: any[]) => boolean | void
+
+  /**
+   * Custom error handler for errors occurred in local functions or during serialization
+   *
+   * @returns `true` to prevent the error from being thrown
+   */
+  onLocalError?: (error: Error, functionName?: string, args?: any[]) => boolean | void
+
+  /**
    * Custom error handler for timeouts
+   *
+   * @returns `true` to prevent the error from being thrown
    */
   onTimeoutError?: (functionName: string, args: any[]) => boolean | void
 }
@@ -104,11 +122,14 @@ export interface BirpcGroup<RemoteFunctions, LocalFunctions = Record<string, nev
   updateChannels: (fn?: ((channels: ChannelOptions[]) => void)) => BirpcReturn<RemoteFunctions, LocalFunctions>[]
 }
 
+const TYPE_REQUEST = 'q' as const
+const TYPE_RESPONSE = 's' as const
+
 interface Request {
   /**
    * Type
    */
-  t: 'q'
+  t: typeof TYPE_REQUEST
   /**
    * ID
    */
@@ -127,7 +148,7 @@ interface Response {
   /**
    * Type
    */
-  t: 's'
+  t: typeof TYPE_RESPONSE
   /**
    * Id
    */
@@ -194,7 +215,7 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
         return undefined
 
       const sendEvent = (...args: any[]) => {
-        post(serialize(<Request>{ m: method, a: args, t: 'q' }))
+        post(serialize(<Request>{ m: method, a: args, t: TYPE_REQUEST }))
       }
       if (eventNames.includes(method as any)) {
         sendEvent.asEvent = sendEvent
@@ -221,8 +242,9 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
             timeoutId = setTimeout(() => {
               try {
                 // Custom onTimeoutError handler can throw its own error too
-                options.onTimeoutError?.(method, args)
-                throw new Error(`[birpc] timeout on calling "${method}"`)
+                const handleResult = options.onTimeoutError?.(method, args)
+                if (handleResult !== true)
+                  throw new Error(`[birpc] timeout on calling "${method}"`)
               }
               catch (e) {
                 reject(e)
@@ -254,8 +276,18 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
   }
 
   async function onMessage(data: any, ...extra: any[]) {
-    const msg = deserialize(data) as RPCMessage
-    if (msg.t === 'q') {
+    let msg: RPCMessage
+
+    try {
+      msg = deserialize(data) as RPCMessage
+    }
+    catch (e) {
+      if (options.onLocalError?.(e as Error) !== true)
+        throw e
+      return
+    }
+
+    if (msg.t === TYPE_REQUEST) {
       const { m: method, a: args } = msg
       let result, error: any
       const fn = resolver
@@ -275,9 +307,34 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
       }
 
       if (msg.i) {
+        // Error handling
         if (error && options.onError)
           options.onError(error, method, args)
-        post(serialize(<Response>{ t: 's', i: msg.i, r: result, e: error }), ...extra)
+        if (error && options.onRemoteError) {
+          if (options.onRemoteError(error, method, args) === true)
+            return
+        }
+
+        // Send data
+        if (!error) {
+          try {
+            post(serialize(<Response>{ t: TYPE_RESPONSE, i: msg.i, r: result }), ...extra)
+            return
+          }
+          catch (e) {
+            error = e
+            if (options.onLocalError?.(e as Error, method, args) !== true)
+              throw e
+          }
+        }
+        // Try to send error if serialization failed
+        try {
+          post(serialize(<Response>{ t: TYPE_RESPONSE, i: msg.i, e: error }), ...extra)
+        }
+        catch (e) {
+          if (options.onLocalError?.(e as Error, method, args) !== true)
+            throw e
+        }
       }
     }
     else {
