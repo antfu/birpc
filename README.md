@@ -75,17 +75,17 @@ wss.on('connection', (ws) => {
 
 ### Circular References
 
-As `JSON.stringify` does not supporting circular references, we recommend using [`flatted`](https://github.com/WebReflection/flatted) as the serializer when you expect to have circular references.
+As `JSON.stringify` does not supporting circular references, we recommend using [`structured-clone-es`](https://github.com/antfu/structured-clone-es) as the serializer when you expect to have circular references.
 
 ```ts
-import { parse, stringify } from 'flatted'
+import { parse, stringify } from 'structured-clone-es'
 
 const rpc = createBirpc<ServerFunctions>(
   functions,
   {
     post: data => ws.send(data),
     on: fn => ws.on('message', fn),
-    // use flatted as serializer
+    // use structured-clone-es as serializer
     serialize: v => stringify(v),
     deserialize: v => parse(v),
   },
