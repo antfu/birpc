@@ -109,7 +109,7 @@ export interface BirpcGroupFn<T> {
 
 export type BirpcReturn<RemoteFunctions, LocalFunctions = Record<string, never>> = {
   [K in keyof RemoteFunctions]: BirpcFn<RemoteFunctions[K]>
-} & { $functions: LocalFunctions, $close: () => void }
+} & { $functions: LocalFunctions, $close: (error?: Error) => void }
 
 export type BirpcGroupReturn<RemoteFunctions> = {
   [K in keyof RemoteFunctions]: BirpcGroupFn<RemoteFunctions[K]>
@@ -266,10 +266,10 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
     },
   }) as BirpcReturn<RemoteFunctions, LocalFunctions>
 
-  function close() {
+  function close(error?: Error) {
     closed = true
     rpcPromiseMap.forEach(({ reject, method }) => {
-      reject(new Error(`[birpc] rpc is closed, cannot call "${method}"`))
+      reject(error || new Error(`[birpc] rpc is closed, cannot call "${method}"`))
     })
     rpcPromiseMap.clear()
     off(onMessage)
