@@ -120,7 +120,7 @@ const rpc = createBirpc<AliceFunctions>(
   },
 )
 
-await rpc.hi('Alice') // Hi Bob, I am Alice
+await rpc.hi('Bob') // Hi Bob, I am Alice
 ```
 
 #### Alice
