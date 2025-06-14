@@ -109,7 +109,7 @@ export interface BirpcGroupFn<T> {
 
 export type BirpcReturn<RemoteFunctions, LocalFunctions = Record<string, never>> = {
   [K in keyof RemoteFunctions]: BirpcFn<RemoteFunctions[K]>
-} & { $functions: LocalFunctions, $close: (error?: Error) => void }
+} & { $functions: LocalFunctions, $close: (error?: Error) => void, $closed: boolean }
 
 export type BirpcGroupReturn<RemoteFunctions> = {
   [K in keyof RemoteFunctions]: BirpcGroupFn<RemoteFunctions[K]>
@@ -209,6 +209,9 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
 
       if (method === '$close')
         return close
+
+      if (method === '$closed')
+        return closed
 
       // catch if "createBirpc" is returned from async function
       if (method === 'then' && !eventNames.includes('then' as any) && !('then' in functions))
