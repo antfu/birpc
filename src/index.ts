@@ -269,10 +269,17 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
     },
   }) as BirpcReturn<RemoteFunctions, LocalFunctions>
 
-  function close(error?: Error) {
+  function close(customError?: Error) {
     closed = true
     rpcPromiseMap.forEach(({ reject, method }) => {
-      reject(error || new Error(`[birpc] rpc is closed, cannot call "${method}"`))
+      const error = new Error(`[birpc] rpc is closed, cannot call "${method}"`)
+
+      if (customError) {
+        customError.cause ??= error
+        return reject(customError)
+      }
+
+      reject(error)
     })
     rpcPromiseMap.clear()
     off(onMessage)
