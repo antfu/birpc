@@ -109,7 +109,14 @@ export interface BirpcGroupFn<T> {
 
 export type BirpcReturn<RemoteFunctions, LocalFunctions = Record<string, never>> = {
   [K in keyof RemoteFunctions]: BirpcFn<RemoteFunctions[K]>
-} & { $functions: LocalFunctions, $close: (error?: Error) => void, $closed: boolean }
+} & {
+  $functions: LocalFunctions
+  $close: (error?: Error) => void
+  $closed: boolean
+  $rejectPendingCalls: (handler: PendingCallHandler) => Promise<void>[]
+}
+
+type PendingCallHandler = (options: Pick<PromiseEntry, 'method' | 'reject'>) => void | Promise<void>
 
 export type BirpcGroupReturn<RemoteFunctions> = {
   [K in keyof RemoteFunctions]: BirpcGroupFn<RemoteFunctions[K]>
@@ -120,6 +127,13 @@ export interface BirpcGroup<RemoteFunctions, LocalFunctions = Record<string, nev
   readonly functions: LocalFunctions
   readonly broadcast: BirpcGroupReturn<RemoteFunctions>
   updateChannels: (fn?: ((channels: ChannelOptions[]) => void)) => BirpcReturn<RemoteFunctions, LocalFunctions>[]
+}
+
+interface PromiseEntry {
+  resolve: (arg: any) => void
+  reject: (error: any) => void
+  method: string
+  timeoutId?: ReturnType<typeof setTimeout>
 }
 
 const TYPE_REQUEST = 'q' as const
@@ -192,12 +206,7 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
     timeout = DEFAULT_TIMEOUT,
   } = options
 
-  const rpcPromiseMap = new Map<string, {
-    resolve: (arg: any) => void
-    reject: (error: any) => void
-    method: string
-    timeoutId?: ReturnType<typeof setTimeout>
-  }>()
+  const rpcPromiseMap = new Map<string, PromiseEntry>()
 
   let _promise: Promise<any> | any
   let closed = false
@@ -209,6 +218,10 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
 
       if (method === '$close')
         return close
+
+      if (method === '$rejectPendingCalls') {
+        return rejectPendingCalls
+      }
 
       if (method === '$closed')
         return closed
@@ -276,6 +289,16 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
     })
     rpcPromiseMap.clear()
     off(onMessage)
+  }
+
+  function rejectPendingCalls(handler: PendingCallHandler) {
+    const entries = Array.from(rpcPromiseMap.values())
+
+    const handlerResults = entries.map(({ method, reject }) => handler({ method, reject }))
+
+    rpcPromiseMap.clear()
+
+    return handlerResults
   }
 
   async function onMessage(data: any, ...extra: any[]) {
