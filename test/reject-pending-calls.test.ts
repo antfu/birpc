@@ -17,6 +17,32 @@ it('rejects pending calls', async () => {
       .catch(error => error),
   ]
 
+  const rejections = rpc.$rejectPendingCalls()
+  expect(rejections).toHaveLength(2)
+
+  const errors = await Promise.all(promises)
+  expect(errors).toHaveLength(2)
+
+  expect.soft(errors[0].message).toBe('[birpc]: rejected pending call "first".')
+  expect.soft(errors[1].message).toBe('[birpc]: rejected pending call "second".')
+})
+
+it('rejects pending calls with custom handler', async () => {
+  const rpc = createBirpc<{ first: () => Promise<void>, second: () => Promise<void> }>({}, {
+    on() {},
+    post() {},
+  })
+
+  const promises = [
+    rpc.first()
+      .then(() => expect.fail('first() should not resolve'))
+      .catch(error => error),
+
+    rpc.second()
+      .then(() => expect.fail('second() should not resolve'))
+      .catch(error => error),
+  ]
+
   const rejections = rpc.$rejectPendingCalls(({ method, reject }) =>
     reject(new Error(`Rejected call. Method: "${method}".`)),
   )

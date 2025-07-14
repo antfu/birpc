@@ -113,7 +113,7 @@ export type BirpcReturn<RemoteFunctions, LocalFunctions = Record<string, never>>
   $functions: LocalFunctions
   $close: (error?: Error) => void
   $closed: boolean
-  $rejectPendingCalls: (handler: PendingCallHandler) => Promise<void>[]
+  $rejectPendingCalls: (handler?: PendingCallHandler) => Promise<void>[]
 }
 
 type PendingCallHandler = (options: Pick<PromiseEntry, 'method' | 'reject'>) => void | Promise<void>
@@ -291,10 +291,16 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
     off(onMessage)
   }
 
-  function rejectPendingCalls(handler: PendingCallHandler) {
+  function rejectPendingCalls(handler?: PendingCallHandler) {
     const entries = Array.from(rpcPromiseMap.values())
 
-    const handlerResults = entries.map(({ method, reject }) => handler({ method, reject }))
+    const handlerResults = entries.map(({ method, reject }) => {
+      if (!handler) {
+        return reject(new Error(`[birpc]: rejected pending call "${method}".`))
+      }
+
+      return handler({ method, reject })
+    })
 
     rpcPromiseMap.clear()
 
