@@ -94,6 +94,10 @@ export type BirpcFn<T> = PromisifyFn<T> & {
    * Send event without asking for response
    */
   asEvent: (...args: ArgumentsType<T>) => void
+  /**
+   * Send event with caching the response
+   */
+  cachedCall: (...args: ArgumentsType<T>) => Promise<Awaited<ReturnType<T>>>
 }
 
 export interface BirpcGroupFn<T> {
@@ -114,6 +118,7 @@ export type BirpcReturn<RemoteFunctions, LocalFunctions = Record<string, never>>
   $close: (error?: Error) => void
   $closed: boolean
   $rejectPendingCalls: (handler?: PendingCallHandler) => Promise<void>[]
+  $refresh: (method: keyof RemoteFunctions) => void
 }
 
 type PendingCallHandler = (options: Pick<PromiseEntry, 'method' | 'reject'>) => void | Promise<void>
@@ -134,6 +139,7 @@ interface PromiseEntry {
   reject: (error: any) => void
   method: string
   timeoutId?: ReturnType<typeof setTimeout>
+  cache?: string
 }
 
 const TYPE_REQUEST = 'q' as const
@@ -207,6 +213,8 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
   } = options
 
   const rpcPromiseMap = new Map<string, PromiseEntry>()
+  const rpcCachedCallMap = new Map<string, any>()
+  const rpcCachedMethodMap = new Map<string, string[]>()
 
   let _promise: Promise<any> | any
   let closed = false
@@ -226,15 +234,66 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
       if (method === '$closed')
         return closed
 
+      if (method === '$refresh')
+        return refreshCache
+
       // catch if "createBirpc" is returned from async function
       if (method === 'then' && !eventNames.includes('then' as any) && !('then' in functions))
         return undefined
+
+      const cachedCall = async (...args: any[]) => {
+        const cache = btoa(JSON.stringify([method, ...args]))
+        if (rpcCachedCallMap.has(cache)) {
+          return rpcCachedCallMap.get(cache)
+        }
+        if (closed)
+          throw new Error(`[birpc] rpc is closed, cannot call "${method}"`)
+        if (_promise) {
+          // Wait if `on` is promise
+          try {
+            await _promise
+          }
+          finally {
+            // don't keep resolved promise hanging
+            _promise = undefined
+          }
+        }
+        return new Promise((resolve, reject) => {
+          const id = nanoid()
+          const caches = rpcCachedMethodMap.get(method) || []
+          let timeoutId: ReturnType<typeof setTimeout> | undefined
+
+          if (timeout >= 0) {
+            timeoutId = setTimeout(() => {
+              try {
+                // Custom onTimeoutError handler can throw its own error too
+                const handleResult = options.onTimeoutError?.(method, args)
+                if (handleResult !== true)
+                  throw new Error(`[birpc] timeout on calling "${method}"`)
+              }
+              catch (e) {
+                reject(e)
+              }
+              rpcPromiseMap.delete(id)
+            }, timeout)
+
+            // For node.js, `unref` is not available in browser-like environments
+            if (typeof timeoutId === 'object')
+              timeoutId = timeoutId.unref?.()
+          }
+
+          rpcPromiseMap.set(id, { resolve, reject, timeoutId, method, cache })
+          rpcCachedMethodMap.set(method, [...caches, cache])
+          post(serialize(<Request>{ m: method, a: args, i: id, t: 'q' }))
+        })
+      }
 
       const sendEvent = (...args: any[]) => {
         post(serialize(<Request>{ m: method, a: args, t: TYPE_REQUEST }))
       }
       if (eventNames.includes(method as any)) {
         sendEvent.asEvent = sendEvent
+        sendEvent.cachedCall = cachedCall
         return sendEvent
       }
       const sendCall = async (...args: any[]) => {
@@ -278,9 +337,17 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
         })
       }
       sendCall.asEvent = sendEvent
+      sendCall.cachedCall = cachedCall
       return sendCall
     },
   }) as BirpcReturn<RemoteFunctions, LocalFunctions>
+
+  function refreshCache(method: keyof RemoteFunctions) {
+    const caches = rpcCachedMethodMap.get(method as string) || []
+    caches.forEach((c) => {
+      rpcCachedCallMap.delete(c)
+    })
+  }
 
   function close(customError?: Error) {
     closed = true
@@ -381,6 +448,10 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
       const promise = rpcPromiseMap.get(ack)
       if (promise) {
         clearTimeout(promise.timeoutId)
+
+        if (promise.cache) {
+          rpcCachedCallMap.set(promise.cache, result)
+        }
 
         if (error)
           promise.reject(error)
