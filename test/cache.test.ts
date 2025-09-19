@@ -45,6 +45,10 @@ it('cache', async () => {
     return bob.hello.cachedCall(name)
   }
 
+  function fn2(name: string) {
+    return bob.hi.cachedCall(name)
+  }
+
   expect(await fn('Bob'))
     .toEqual('Hello Bob, my name is Alice')
 
@@ -77,8 +81,25 @@ it('cache', async () => {
 
   expect(spy).toHaveBeenCalledTimes(4)
 
-  expect(await fn('Bob2'))
-    .toEqual('Hello Bob2, my name is Alice')
+  expect(await fn2('Bob'))
+    .toEqual('Hi Bob, I am Alice')
 
-  expect(spy).toHaveBeenCalledTimes(4)
+  expect(spy).toHaveBeenCalledTimes(5)
+
+  expect(await fn2('Bob'))
+    .toEqual('Hi Bob, I am Alice')
+
+  expect(spy).toHaveBeenCalledTimes(5)
+
+  bob.$refresh()
+
+  expect(await fn('Bob'))
+    .toEqual('Hello Bob, my name is Alice')
+
+  expect(spy).toHaveBeenCalledTimes(6)
+
+  expect(await fn2('Bob'))
+    .toEqual('Hi Bob, I am Alice')
+
+  expect(spy).toHaveBeenCalledTimes(7)
 })

@@ -118,7 +118,7 @@ export type BirpcReturn<RemoteFunctions, LocalFunctions = Record<string, never>>
   $close: (error?: Error) => void
   $closed: boolean
   $rejectPendingCalls: (handler?: PendingCallHandler) => Promise<void>[]
-  $refresh: (method: keyof RemoteFunctions) => void
+  $refresh: (method?: keyof RemoteFunctions) => void
 }
 
 type PendingCallHandler = (options: Pick<PromiseEntry, 'method' | 'reject'>) => void | Promise<void>
@@ -342,8 +342,14 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
     },
   }) as BirpcReturn<RemoteFunctions, LocalFunctions>
 
-  function refreshCache(method: keyof RemoteFunctions) {
+  function refreshCache(method?: keyof RemoteFunctions) {
+    if (!method) {
+      rpcCachedMethodMap.clear()
+      rpcCachedCallMap.clear()
+      return
+    }
     const caches = rpcCachedMethodMap.get(method as string) || []
+    rpcCachedMethodMap.delete(method as string)
     caches.forEach((c) => {
       rpcCachedCallMap.delete(c)
     })
