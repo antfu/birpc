@@ -60,6 +60,15 @@ export interface EventOptions<Remote> {
   resolver?: BirpcResolver
 
   /**
+   * Hook triggered before an event is sent to the remote
+   *
+   * @param req - Request parameters
+   * @param next - Function to continue the request
+   * @param send - Function to send the response directly
+   */
+  onRequest?: (req: Omit<Request, 't'>, next: () => Promise<any>, send: (res: any) => void) => void
+
+  /**
    * Custom error handler
    *
    * @deprecated use `onFunctionError` and `onGeneralError` instead
@@ -255,27 +264,36 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
           const id = nanoid()
           let timeoutId: ReturnType<typeof setTimeout> | undefined
 
-          if (timeout >= 0) {
-            timeoutId = setTimeout(() => {
-              try {
-                // Custom onTimeoutError handler can throw its own error too
-                const handleResult = options.onTimeoutError?.(method, args)
-                if (handleResult !== true)
-                  throw new Error(`[birpc] timeout on calling "${method}"`)
-              }
-              catch (e) {
-                reject(e)
-              }
-              rpcPromiseMap.delete(id)
-            }, timeout)
+          function handler(next?: (res: any) => void) {
+            if (timeout >= 0) {
+              timeoutId = setTimeout(() => {
+                try {
+                  // Custom onTimeoutError handler can throw its own error too
+                  const handleResult = options.onTimeoutError?.(method, args)
+                  if (handleResult !== true)
+                    throw new Error(`[birpc] timeout on calling "${method}"`)
+                }
+                catch (e) {
+                  reject(e)
+                }
+                rpcPromiseMap.delete(id)
+              }, timeout)
 
-            // For node.js, `unref` is not available in browser-like environments
-            if (typeof timeoutId === 'object')
-              timeoutId = timeoutId.unref?.()
+              // For node.js, `unref` is not available in browser-like environments
+              if (typeof timeoutId === 'object')
+                timeoutId = timeoutId.unref?.()
+            }
+
+            rpcPromiseMap.set(id, { resolve: next ? (res) => { resolve(res); next(res) } : resolve, reject: next ? (err) => { reject(err); next(err) } : reject, timeoutId, method })
+            post(serialize(<Request>{ m: method, a: args, i: id, t: 'q' }))
           }
 
-          rpcPromiseMap.set(id, { resolve, reject, timeoutId, method })
-          post(serialize(<Request>{ m: method, a: args, i: id, t: 'q' }))
+          if (options.onRequest) {
+            options.onRequest({ i: id!, m: method, a: args }, () => new Promise(handler), resolve)
+          }
+          else {
+            handler()
+          }
         })
       }
       sendCall.asEvent = sendEvent
