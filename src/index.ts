@@ -3,8 +3,9 @@ export type ReturnType<T> = T extends (...args: any) => infer R ? R : never
 export type PromisifyFn<T> = ReturnType<T> extends Promise<any>
   ? T
   : (...args: ArgumentsType<T>) => Promise<Awaited<ReturnType<T>>>
+export type Thenable<T> = T | PromiseLike<T>
 
-export type BirpcResolver = (name: string, resolved: (...args: unknown[]) => unknown) => ((...args: unknown[]) => unknown) | undefined
+export type BirpcResolver = (name: string, resolved: (...args: unknown[]) => unknown) => Thenable<((...args: unknown[]) => unknown) | undefined>
 
 export interface ChannelOptions {
   /**
@@ -329,9 +330,9 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
     if (msg.t === TYPE_REQUEST) {
       const { m: method, a: args } = msg
       let result, error: any
-      const fn = resolver
+      const fn = await (resolver
         ? resolver(method, (functions as any)[method])
-        : (functions as any)[method]
+        : (functions as any)[method])
 
       if (!fn) {
         error = new Error(`[birpc] function "${method}" not found`)
