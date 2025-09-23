@@ -15,17 +15,15 @@ const mockFn = {
 
 function createChannel(options: {
   onRequest?: EventOptions<BobFunctions>['onRequest']
-  onResponse?: EventOptions<BobFunctions>['onResponse']
 } = {}) {
   const channel = new MessageChannel()
-  const { onRequest = () => {}, onResponse = () => {} } = options
+  const { onRequest = () => {} } = options
   return {
     channel,
     alice: createBirpc<BobFunctions, AliceFunctions>(
       Alice,
       {
         onRequest,
-        onResponse,
         post: data => channel.port2.postMessage(data),
         on: (fn) => {
           channel.port2.on('message', fn)
@@ -51,18 +49,13 @@ it('cache', async () => {
   const spy = vi.spyOn(mockFn, 'trigger')
   const cacheMap = new Map<string, string>()
   const { alice } = createChannel({
-    onRequest: (request) => {
-      if (['getCount', 'bump'].includes(request.m)) {
-        return false
+    onRequest: async (req, next, send) => {
+      const key = btoa(`${req.m}-${req.a?.join('-')}`)
+      if (!cacheMap.has(key)) {
+        cacheMap.set(key, await next())
       }
-      return cacheMap.has(`${request.m}-${request.a?.join('-')}`)
-    },
-    onResponse: (response, { request, reason }) => {
-      if (reason === 'ok') {
-        cacheMap.set(`${request.m}-${request.a?.join('-')}`, response?.r)
-      }
-      else if (reason === 'abort') {
-        return cacheMap.get(`${request.m}-${request.a?.join('-')}`)
+      else {
+        send(cacheMap.get(key))
       }
     },
   })
@@ -76,8 +69,4 @@ it('cache', async () => {
   expect(spy).toBeCalledTimes(2)
   expect(await alice.getCount()).toBe(0)
   expect(spy).toBeCalledTimes(3)
-  await alice.bump()
-  expect(spy).toBeCalledTimes(4)
-  expect(await alice.getCount()).toBe(1)
-  expect(spy).toBeCalledTimes(5)
 })

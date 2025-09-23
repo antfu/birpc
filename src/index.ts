@@ -61,16 +61,11 @@ export interface EventOptions<Remote> {
   /**
    * Hook triggered before an event is sent to the remote
    *
-   * @returns `true` to prevent the event from being sent
+   * @param req - Request parameters
+   * @param next - Function to continue the request
+   * @param send - Function to send the response directly
    */
-  onRequest?: (request: Omit<Request, 't'>) => Promise<boolean | void> | boolean | void
-
-  /**
-   * Hook triggered after receiving a response
-   *
-   * @returns optional data to override the response
-   */
-  onResponse?: <R extends 'ok' | 'error' | 'abort'>(response: R extends 'abort' ? null : Pick<Response, 'r' | 'e'>, options: { request: Omit<Request, 't'>, reason: R }) => Promise<any | void> | any | void
+  onRequest?: (req: Omit<Request, 't'>, next: () => Promise<any>, send: (res: any) => void) => void
 
   /**
    * Custom error handler
@@ -189,10 +184,6 @@ interface Response {
    * Error
    */
   e?: any
-  /**
-   * Request
-   */
-  req: Omit<Request, 't'>
 }
 
 type RPCMessage = Request | Response
@@ -272,7 +263,7 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
           const id = nanoid()
           let timeoutId: ReturnType<typeof setTimeout> | undefined
 
-          function handler() {
+          function handler(next?: (res: any) => void) {
             if (timeout >= 0) {
               timeoutId = setTimeout(() => {
                 try {
@@ -292,20 +283,12 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
                 timeoutId = timeoutId.unref?.()
             }
 
-            rpcPromiseMap.set(id, { resolve, reject, timeoutId, method })
+            rpcPromiseMap.set(id, { resolve: next ? (res) => { resolve(res); next(res) } : resolve, reject: next ? (err) => { reject(err); next(err) } : reject, timeoutId, method })
             post(serialize(<Request>{ m: method, a: args, i: id, t: 'q' }))
           }
 
           if (options.onRequest) {
-            (async () => {
-              if (await options.onRequest?.({ i: id!, m: method, a: args })) {
-                if (options.onResponse) {
-                  resolve(await options.onResponse?.(null, { request: { i: id!, m: method, a: args }, reason: 'abort' }))
-                }
-                return
-              }
-              handler()
-            })()
+            options.onRequest({ i: id!, m: method, a: args }, () => new Promise(handler), resolve)
           }
           else {
             handler()
@@ -362,13 +345,7 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
     }
 
     if (msg.t === TYPE_REQUEST) {
-      const { i, m: method, a: args } = msg
-
-      if (await options.onRequest?.({ i, m: method, a: args })) {
-        options.onResponse?.(null, { request: { i, m: method, a: args }, reason: 'abort' })
-        return
-      }
-
+      const { m: method, a: args } = msg
       let result, error: any
       const fn = resolver
         ? resolver(method, (functions as any)[method])
@@ -386,7 +363,7 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
         }
       }
 
-      if (i) {
+      if (msg.i) {
         // Error handling
         if (error && options.onError)
           options.onError(error, method, args)
@@ -398,7 +375,7 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
         // Send data
         if (!error) {
           try {
-            post(serialize(<Response>{ t: TYPE_RESPONSE, i, r: result, req: { m: method, a: args } }), ...extra)
+            post(serialize(<Response>{ t: TYPE_RESPONSE, i: msg.i, r: result }), ...extra)
             return
           }
           catch (e) {
@@ -409,7 +386,7 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
         }
         // Try to send error if serialization failed
         try {
-          post(serialize(<Response>{ t: TYPE_RESPONSE, i, e: error, req: { m: method, a: args } }), ...extra)
+          post(serialize(<Response>{ t: TYPE_RESPONSE, i: msg.i, e: error }), ...extra)
         }
         catch (e) {
           if (options.onGeneralError?.(e as Error, method, args) !== true)
@@ -418,16 +395,15 @@ export function createBirpc<RemoteFunctions = Record<string, never>, LocalFuncti
       }
     }
     else {
-      const { i: ack, r: result, e: error, req } = msg
+      const { i: ack, r: result, e: error } = msg
       const promise = rpcPromiseMap.get(ack)
-      const onResponseResult = options.onResponse ? await options.onResponse?.({ r: result, e: error }, { request: req, reason: error ? 'error' : 'ok' }) : null
       if (promise) {
         clearTimeout(promise.timeoutId)
 
         if (error)
-          promise.reject(onResponseResult ?? error)
+          promise.reject(error)
         else
-          promise.resolve(onResponseResult ?? result)
+          promise.resolve(result)
       }
       rpcPromiseMap.delete(ack)
     }
